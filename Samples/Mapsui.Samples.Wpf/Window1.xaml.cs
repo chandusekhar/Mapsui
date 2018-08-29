@@ -5,10 +5,10 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Data;
 using System.Windows.Input;
 using Mapsui.Logging;
 using Mapsui.Samples.Common.Desktop;
+using Mapsui.Samples.CustomWidget;
 using Mapsui.Samples.Wpf.Utilities;
 using Mapsui.Tests.Common;
 using Mapsui.UI;
@@ -20,12 +20,12 @@ namespace Mapsui.Samples.Wpf
         public Window1()
         {
             InitializeComponent();
-            MapControl.ErrorMessageChanged += MapErrorMessageChanged;
             MapControl.FeatureInfo += MapControlFeatureInfo;
             MapControl.MouseMove += MapControlOnMouseMove;
-  
-            Fps.SetBinding(TextBlock.TextProperty, new Binding("Fps"));
-            Fps.DataContext = MapControl.FpsCounter;
+            MapControl.RotationLock = false;
+            MapControl.UnSnapRotationDegrees = 30;
+            MapControl.ReSnapRotationDegrees = 5;
+            MapControl.Renderer.WidgetRenders[typeof(CustomWidget.CustomWidget)] = new CustomWidgetSkiaRenderer();
 
             Logger.LogDelegate += LogMethod;
 
@@ -33,19 +33,14 @@ namespace Mapsui.Samples.Wpf
 
             SampleSet.SelectionChanged += SampleSetOnSelectionChanged;
             RenderMode.SelectionChanged += RenderModeOnSelectionChanged;
-            var firstRadioButton = (RadioButton) SampleList.Children[0];
+            var firstRadioButton = (RadioButton)SampleList.Children[0];
             firstRadioButton.IsChecked = true;
             firstRadioButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         }
-
-        private void MapControlOnHover(object sender, InfoEventArgs e)
-        {
-            FeatureInfo.Text = e.Feature == null ? "" : $"Hover Info:{Environment.NewLine}{e.Feature.ToDisplayText()}";
-        }
-
+        
         private void RenderModeOnSelectionChanged(object sender, SelectionChangedEventArgs selectionChangedEventArgs)
         {
-            var selectedValue = ((ComboBoxItem) ((ComboBox) sender).SelectedItem).Content.ToString();
+            var selectedValue = ((ComboBoxItem)((ComboBox)sender).SelectedItem).Content.ToString();
 
             if (selectedValue.ToLower().Contains("wpf"))
                 MapControl.RenderMode = UI.Wpf.RenderMode.Wpf;
@@ -58,7 +53,7 @@ namespace Mapsui.Samples.Wpf
         private void MapControlOnMouseMove(object sender, MouseEventArgs e)
         {
             var screenPosition = e.GetPosition(MapControl);
-            var worldPosition = MapControl.Map.Viewport.ScreenToWorld(screenPosition.X, screenPosition.Y);
+            var worldPosition = MapControl.Viewport.ScreenToWorld(screenPosition.X, screenPosition.Y);
             MouseCoordinates.Text = $"{worldPosition.X:F0}, {worldPosition.Y:F0}";
         }
 
@@ -82,7 +77,7 @@ namespace Mapsui.Samples.Wpf
 
         private void SampleSetOnSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var selectedValue = ((ComboBoxItem) ((ComboBox) sender).SelectedItem).Content.ToString();
+            var selectedValue = ((ComboBoxItem)((ComboBox)sender).SelectedItem).Content.ToString();
 
             if (selectedValue == "Demo samples")
                 FillComboBoxWithDemoSamples();
@@ -109,8 +104,10 @@ namespace Mapsui.Samples.Wpf
             var allSamples = Common.AllSamples.CreateList();
             // Append samples from Mapsui.Desktop
             allSamples["Shapefile (Desktop)"] = ShapefileSample.CreateMap;
+            allSamples["ThemeStyle (Desktop)"] = ThemeStyleSample.CreateMap;
             allSamples["Tiles on disk (Desktop)"] = MapTilerSample.CreateMap;
             allSamples["WMS (Desktop)"] = WmsSample.CreateMap;
+            allSamples["Slow WMS (Desktop)"] = SlowWmsSample.CreateMap;
             return allSamples;
         }
 
@@ -127,20 +124,17 @@ namespace Mapsui.Samples.Wpf
             {
                 MapControl.Map.Layers.Clear();
                 MapControl.Map = sample.Value();
-                MapControl.Map.Info += MapControlOnInfo;
-                MapControl.Map.Hover += MapControlOnHover;
+                MapControl.Info += MapControlOnInfo;
                 LayerList.Initialize(MapControl.Map.Layers);
-                MapControl.Refresh();
-                
             };
             return radioButton;
         }
 
-        readonly LimitedQueue<LogModel> _logMessage = new LimitedQueue<LogModel>(10); 
+        readonly LimitedQueue<LogModel> _logMessage = new LimitedQueue<LogModel>(6);
 
         private void LogMethod(LogLevel logLevel, string message, Exception exception)
         {
-            _logMessage.Enqueue(new LogModel{Exception = exception, LogLevel = logLevel, Message = message});
+            _logMessage.Enqueue(new LogModel { Exception = exception, LogLevel = logLevel, Message = message });
             Dispatcher.Invoke(() => LogTextBox.Text = ToMultiLineString(_logMessage));
         }
 
@@ -162,23 +156,18 @@ namespace Mapsui.Samples.Wpf
         {
             MessageBox.Show(e.FeatureInfo.ToDisplayText());
         }
-
-        private void MapErrorMessageChanged(object sender, EventArgs e)
-        {
-            LogTextBox.Text = MapControl.ErrorMessage; // todo: keep history
-        }
-
+        
         private void RotationSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            var percent = RotationSlider.Value/(RotationSlider.Maximum - RotationSlider.Minimum);
-            MapControl.Map.Viewport.Rotation = percent*360;
+            var percent = RotationSlider.Value / (RotationSlider.Maximum - RotationSlider.Minimum);
+            MapControl.Navigator.RotateTo(percent * 360);
             MapControl.Refresh();
         }
 
-        private void MapControlOnInfo(object sender, InfoEventArgs infoEventArgs)
+        private void MapControlOnInfo(object sender, MapInfoEventArgs args)
         {
-            if (infoEventArgs.Feature != null)
-                FeatureInfo.Text = $"Click Info:{Environment.NewLine}{infoEventArgs.Feature.ToDisplayText()}";
+            if (args.MapInfo.Feature != null)
+                FeatureInfo.Text = $"Click Info:{Environment.NewLine}{args.MapInfo.Feature.ToDisplayText()}";
         }
     }
 }

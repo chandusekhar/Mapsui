@@ -1,5 +1,6 @@
 ﻿using Mapsui.Styles;
 using Mapsui.Widgets;
+using Mapsui.Widgets.Zoom;
 
 namespace Mapsui.Samples.Common.Maps
 {
@@ -9,25 +10,29 @@ namespace Mapsui.Samples.Common.Maps
         {
             var map = new Map();
 
-            map.Widgets.Add(CreateTextBox("Top Right", VerticalAlignment.Top, HorizontalAlignment.Right));
-            map.Widgets.Add(CreateTextBox("Center Right", VerticalAlignment.Center, HorizontalAlignment.Right));
-            map.Widgets.Add(CreateTextBox("Bottom Right", VerticalAlignment.Bottom, HorizontalAlignment.Right));
-            map.Widgets.Add(CreateTextBox("Bottom Center", VerticalAlignment.Bottom, HorizontalAlignment.Center));
+            map.Widgets.Add(CreateHyperlink("Top Right", VerticalAlignment.Top, HorizontalAlignment.Right));
+            map.Widgets.Add(CreateHyperlink("Center Right", VerticalAlignment.Center, HorizontalAlignment.Right));
+            map.Widgets.Add(CreateHyperlink("Bottom Right", VerticalAlignment.Bottom, HorizontalAlignment.Right));
+            map.Widgets.Add(CreateHyperlink("Bottom Center", VerticalAlignment.Bottom, HorizontalAlignment.Center));
 
-            map.Widgets.Add(CreateTextBox("Bottom Left", VerticalAlignment.Bottom, HorizontalAlignment.Left));
-            map.Widgets.Add(CreateTextBox("Center Left", VerticalAlignment.Center, HorizontalAlignment.Left));
-            map.Widgets.Add(CreateTextBox("Top Left", VerticalAlignment.Top, HorizontalAlignment.Left));
-            map.Widgets.Add(CreateTextBox("Top Center", VerticalAlignment.Top, HorizontalAlignment.Center));
+            map.Widgets.Add(CreateHyperlink("Bottom Left", VerticalAlignment.Bottom, HorizontalAlignment.Left));
+            map.Widgets.Add(CreateHyperlink("Center Left", VerticalAlignment.Center, HorizontalAlignment.Left));
+            map.Widgets.Add(CreateHyperlink("Top Left", VerticalAlignment.Top, HorizontalAlignment.Left));
+            map.Widgets.Add(CreateHyperlink("Top Center", VerticalAlignment.Top, HorizontalAlignment.Center));
+
+            map.Widgets.Add(new ZoomInOutWidget { MarginX = 20, MarginY = 20 });
+            map.Widgets.Add(new ZoomInOutWidget { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
 
             return map;
         }
 
-        private static TextBox CreateTextBox(string text, VerticalAlignment verticalAlignment, 
+        private static IWidget CreateHyperlink(string text, VerticalAlignment verticalAlignment, 
             HorizontalAlignment horizontalAlignment)
         {
-            return new TextBox
+            return new Hyperlink()
             {
                 Text = text,
+                Url = "http://www.openstreetmap.org/copyright",
                 VerticalAlignment = verticalAlignment,
                 HorizontalAlignment = horizontalAlignment,
                 MarginX = 10,

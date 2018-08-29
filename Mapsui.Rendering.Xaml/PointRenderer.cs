@@ -1,5 +1,6 @@
 ﻿using Mapsui.Styles;
 using Point = Mapsui.Geometries.Point;
+using System;
 using System.Windows;
 using XamlMedia = System.Windows.Media;
 using XamlShapes = System.Windows.Shapes;
@@ -10,7 +11,7 @@ namespace Mapsui.Rendering.Xaml
 {
     public static class PointRenderer
     {
-        public static XamlShapes.Shape RenderPoint(Point point, IStyle style, IViewport viewport,
+        public static XamlShapes.Shape RenderPoint(Point point, IStyle style, IReadOnlyViewport viewport,
             SymbolCache symbolCache)
         {
             XamlShapes.Shape symbol;
@@ -20,18 +21,20 @@ namespace Mapsui.Rendering.Xaml
             if (symbolStyle != null)
             {
                 if (symbolStyle.BitmapId < 0)
-                    symbol = CreateSymbolFromVectorStyle(symbolStyle, symbolStyle.Opacity, symbolStyle.SymbolType);
+                    symbol = CreateSymbolFromVectorStyle(symbolStyle, symbolStyle.Opacity, symbolStyle.SymbolType, symbolCache, (float)viewport.Rotation);
                 else
+                {
                     symbol = CreateSymbolFromBitmap(symbolStyle.BitmapId, symbolStyle.Opacity, symbolCache);
-                matrix = CreatePointSymbolMatrix(viewport.Resolution, viewport.Rotation, symbolStyle);
+                }
+                matrix = CreatePointSymbolMatrix(viewport.Resolution, viewport.Rotation, symbolStyle, symbol.Width, symbol.Height);
             }
             else
             {
-                symbol = CreateSymbolFromVectorStyle((style as VectorStyle) ?? new VectorStyle());
+                symbol = CreateSymbolFromVectorStyle((style as VectorStyle) ?? new VectorStyle(), symbolCache: symbolCache, rotate: (float)viewport.Rotation);
                 MatrixHelper.ScaleAt(ref matrix, viewport.Resolution, viewport.Resolution);
             }
 
-            MatrixHelper.Append(ref matrix, GeometryRenderer.CreateTransformMatrix(point, viewport));
+            MatrixHelper.Append(ref matrix, GeometryRenderer.CreateTransformMatrix(viewport, point));
 
             symbol.RenderTransform = new XamlMedia.MatrixTransform { Matrix = matrix };
             symbol.IsHitTestVisible = false;
@@ -40,44 +43,55 @@ namespace Mapsui.Rendering.Xaml
         }
 
         private static XamlShapes.Shape CreateSymbolFromVectorStyle(VectorStyle style, double opacity = 1,
-            SymbolType symbolType = SymbolType.Ellipse)
+            SymbolType symbolType = SymbolType.Ellipse, SymbolCache symbolCache = null, float rotate = 0f)
         {
             // The SL StrokeThickness default is 1 which causes blurry bitmaps
             var path = new XamlShapes.Path
             {
                 StrokeThickness = 0,
-                Fill = ToXaml(style.Fill)
+                Fill = ToXaml(style.Fill, symbolCache, rotate)
             };
 
             if (style.Outline != null)
             {
                 path.Stroke = new XamlMedia.SolidColorBrush(style.Outline.Color.ToXaml());
                 path.StrokeThickness = style.Outline.Width;
-                path.StrokeDashArray = style.Outline.PenStyle.ToXaml();
+                path.StrokeDashArray = style.Outline.PenStyle.ToXaml(style.Outline.DashArray);
             }
 
-            if (symbolType == SymbolType.Ellipse)
-                path.Data = CreateEllipse(SymbolStyle.DefaultWidth, SymbolStyle.DefaultHeight);
-            else
-                path.Data = CreateRectangle(SymbolStyle.DefaultWidth, SymbolStyle.DefaultHeight);
+            switch (symbolType)
+            {
+                case SymbolType.Ellipse:
+                    path.Data = CreateEllipse(SymbolStyle.DefaultWidth, SymbolStyle.DefaultHeight);
+                    break;
+                case SymbolType.Rectangle:
+                    path.Data = CreateRectangle(SymbolStyle.DefaultWidth, SymbolStyle.DefaultHeight);
+                    break;
+                case SymbolType.Triangle:
+                    path.Data = CreateTriangle(SymbolStyle.DefaultWidth);
+                    break;
+                default: // Invalid value
+                    throw new ArgumentOutOfRangeException();
+            }                
 
             path.Opacity = opacity;
 
             return path;
         }
 
-        private static XamlMedia.Brush ToXaml(Brush brush)
+        private static XamlMedia.Brush ToXaml(Brush brush, SymbolCache symbolCache, float rotate = 0f)
         {
             return brush != null && (brush.Color != null || brush.BitmapId != -1) ?
-                brush.ToXaml() : new XamlMedia.SolidColorBrush(XamlColors.Transparent);
+                brush.ToXaml(symbolCache, rotate) : new XamlMedia.SolidColorBrush(XamlColors.Transparent);
         }
 
-        private static XamlMedia.Matrix CreatePointSymbolMatrix(double resolution, double mapRotation, SymbolStyle symbolStyle)
+        private static XamlMedia.Matrix CreatePointSymbolMatrix(double resolution, double mapRotation, SymbolStyle symbolStyle, double width, double height)
         {
             var matrix = XamlMedia.Matrix.Identity;
             MatrixHelper.InvertY(ref matrix);
-            var centerX = symbolStyle.SymbolOffset.X;
-            var centerY = symbolStyle.SymbolOffset.Y;
+
+            var centerX = symbolStyle.SymbolOffset.IsRelative ? width * symbolStyle.SymbolOffset.X : symbolStyle.SymbolOffset.X;
+            var centerY = symbolStyle.SymbolOffset.IsRelative ? height * symbolStyle.SymbolOffset.Y : symbolStyle.SymbolOffset.Y;
 
             var scale = symbolStyle.SymbolScale;
             MatrixHelper.Translate(ref matrix, centerX, centerY);
@@ -96,9 +110,11 @@ namespace Mapsui.Rendering.Xaml
         {
             var imageBrush = symbolCache.GetOrCreate(bitmapId).ToImageBrush();
 
+            var size = symbolCache.GetSize(bitmapId);
+
             // note: It probably makes more sense to use PixelWidth here:
-            var width = imageBrush.ImageSource.Width;
-            var height = imageBrush.ImageSource.Height;
+            var width = size.Width;
+            var height = size.Height;
 
             var path = new XamlShapes.Path
             {
@@ -131,13 +147,39 @@ namespace Mapsui.Rendering.Xaml
             };
         }
 
-        public static void PositionPoint(UIElement renderedGeometry, Point point, IStyle style, IViewport viewport)
+        /// <summary>
+        /// Equilateral triangle of side 'sideLength', centered on the same point as if a circle of diameter 'sideLength' was there
+        /// </summary>
+        private static XamlMedia.PathGeometry CreateTriangle(double sideLength)
+        {
+            var altitude = Math.Sqrt(3) / 2.0 * sideLength;
+            var inradius = altitude / 3.0;
+            var circumradius = 2.0 * inradius;
+
+            var top = new XamlPoint(0, -circumradius);
+            var left = new XamlPoint(sideLength * -0.5, inradius);
+            var right = new XamlPoint(sideLength * 0.5, inradius);
+
+            var segments = new XamlMedia.PathSegmentCollection();
+            segments.Add(new XamlMedia.LineSegment(left, true));
+            segments.Add(new XamlMedia.LineSegment(right, true));
+            var figure = new XamlMedia.PathFigure(top, segments, true);
+            var figures = new XamlMedia.PathFigureCollection();
+            figures.Add(figure);
+
+            return new XamlMedia.PathGeometry
+            {
+                Figures = figures
+            };
+        }
+
+        public static void PositionPoint(UIElement renderedGeometry, Point point, IStyle style, IReadOnlyViewport viewport)
         {
             var matrix = XamlMedia.Matrix.Identity;
             var symbolStyle = style as SymbolStyle;
-            if (symbolStyle != null) matrix = CreatePointSymbolMatrix(viewport.Resolution, viewport.Rotation, symbolStyle);
+            if (symbolStyle != null) matrix = CreatePointSymbolMatrix(viewport.Resolution, viewport.Rotation, symbolStyle, renderedGeometry.RenderSize.Width, renderedGeometry.RenderSize.Height);
             else MatrixHelper.ScaleAt(ref matrix, viewport.Resolution, viewport.Resolution);
-            MatrixHelper.Append(ref matrix, GeometryRenderer.CreateTransformMatrix(point, viewport));
+            MatrixHelper.Append(ref matrix, GeometryRenderer.CreateTransformMatrix(viewport, point));
             renderedGeometry.RenderTransform = new XamlMedia.MatrixTransform { Matrix = matrix };
         }
     }

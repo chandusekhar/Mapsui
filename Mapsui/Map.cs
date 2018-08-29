@@ -23,10 +23,8 @@ using Mapsui.Fetcher;
 using Mapsui.Geometries;
 using Mapsui.Layers;
 using Mapsui.Projection;
-using Mapsui.Rendering;
 using Mapsui.Styles;
 using Mapsui.UI;
-using Mapsui.Utilities;
 using Mapsui.Widgets;
 
 namespace Mapsui
@@ -34,10 +32,13 @@ namespace Mapsui
     /// <summary>
     /// Map class
     /// </summary>
-    public class Map : INotifyPropertyChanged
+    /// <remarks>
+    /// Map holds all map related infos like transformation, layers, widgets and so on.
+    /// </remarks>
+    public class Map : INotifyPropertyChanged, IMap
     {
         private LayerCollection _layers = new LayerCollection();
-		private Color _backColor = Color.White;
+        private Color _backColor = Color.White;
 
         /// <summary>
         /// Initializes a new map
@@ -46,30 +47,22 @@ namespace Mapsui
         {
             BackColor = Color.White;
             Layers = new LayerCollection();
-            Viewport =  new Viewport { Center = { X = double.NaN, Y = double.NaN }, Resolution = double.NaN };
         }
 
-        public List<Widget> Widgets { get; } = new List<Widget>();
+        /// <summary>
+        /// List of Widgets belonging to map
+        /// </summary>
+        public List<IWidget> Widgets { get; } = new List<IWidget>();
 
-        public PanMode PanMode { get; set; } = PanMode.KeepCenterWithinExtents;
-
-        public ZoomMode ZoomMode { get; set; } = ZoomMode.KeepWithinResolutions;
+        public ILimits Limits { get; } = new Limits();
 
         /// <summary>
-        /// Set this property in combination KeepCenterWithinExtents or KeepViewportWithinExtents.
-        /// If PanLimits is not set Map.Extent will be used as restricted extent.
+        /// Projection type of Map. Normally in format like "EPSG:3857"
         /// </summary>
-        public BoundingBox PanLimits { get; set; }
-
-        /// <summary>
-        /// Pair of the limits for the resolutions (smallest and biggest). The resolution is kept between these values.
-        /// </summary>
-        public MinMax ZoomLimits { get; set; }
-
         public string CRS { get; set; }
 
         /// <summary>
-        /// The maps coördinate system
+        /// Transformation to use for the different coordinate systems
         /// </summary>
         public ITransformation Transformation { get; set; }
 
@@ -78,7 +71,7 @@ namespace Mapsui
         /// </summary>
         public LayerCollection Layers
         {
-            get { return _layers; }
+            get => _layers;
             private set
             {
                 var tempLayers = _layers;
@@ -92,65 +85,26 @@ namespace Mapsui
                 _layers.LayerRemoved += LayersLayerRemoved;
             }
         }
-        
+
+        [Obsolete("Use ILayer.IsMapInfoLayer instead", true)]
         public IList<ILayer> InfoLayers { get; } = new List<ILayer>();
 
+        [Obsolete("Use your own hover event and call MapControl.GetMapInfo", true)]
         public IList<ILayer> HoverLayers { get; } = new List<ILayer>();
-
-        public Viewport Viewport { get; }
-
-        public void NavigateTo(BoundingBox extent, ScaleMethod scaleMethod = ScaleMethod.Fit)
-        {
-            Viewport.Resolution = ZoomHelper.DetermineResolution(
-                extent.Width, extent.Height, Viewport.Width, Viewport.Height, scaleMethod);
-            Viewport.Center = extent.GetCentroid();
-
-            OnRefreshGraphics();
-            ViewChanged(true);
-        }
-
-        public void NavigateTo(double resolution)
-        {
-            Viewport.Resolution = resolution;
-            OnRefreshGraphics();
-            ViewChanged(true);
-        }
-
-        public void NavigateTo(Point center)
-        {
-            Viewport.Center = center;
-            OnRefreshGraphics();
-            ViewChanged(true);
-        }
-
-        public void NavigateTo(double x, double y)
-        {
-            Viewport.Center = new Point(x, y);
-            OnRefreshGraphics();
-            ViewChanged(true);
-        }
-
-        public void RotateTo(double rotation)
-        {
-            Viewport.Rotation = rotation;
-            OnRefreshGraphics();
-            ViewChanged(true);
-        }
 
         /// <summary>
         /// Map background color (defaults to transparent)
         ///  </summary>
         public Color BackColor
-		{
-			get { return _backColor; }
-			set
-			{
-				if (_backColor == value)
-					return;
-				_backColor = value;
-				OnRefreshGraphics();
-			}
-		} 
+        {
+            get => _backColor;
+            set
+            {
+                if (_backColor == value) return;
+                _backColor = value;
+                OnPropertyChanged(nameof(BackColor));
+            }
+        }
 
         /// <summary>
         /// Gets the extents of the map based on the extents of all the layers in the layers collection
@@ -171,50 +125,63 @@ namespace Mapsui
             }
         }
 
+        /// <summary>
+        /// List of all native resolutions of this map
+        /// </summary>
         public IReadOnlyList<double> Resolutions { get; private set; }
-    
+
+        /// <summary>
+        /// Called whenever a property changed
+        /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 
         /// <summary>
         /// DataChanged should be triggered by any data changes of any of the child layers
         /// </summary>
         public event DataChangedEventHandler DataChanged;
+
+#pragma warning disable 67
+        [Obsolete("Use PropertyChanged instead", true)]
         public event EventHandler RefreshGraphics;
-        public event EventHandler<InfoEventArgs> Info;
-        public event EventHandler<InfoEventArgs> Hover;
+#pragma warning restore 67
 
-        private void LayersLayerRemoved(ILayer layer)
+        [Obsolete("Use MapControl.Info instead", true)]
+#pragma warning disable 67
+        public event EventHandler<MapInfoEventArgs> Info;
+#pragma warning restore 67
+
+        [Obsolete("Use your own hover event instead and call MapControl.GetMapInfo", true)]
+#pragma warning disable 67
+        public event EventHandler<MapInfoEventArgs> Hover;
+#pragma warning restore 67
+        
+        /// <summary>
+        /// Abort fetching of all layers
+        /// </summary>
+        public void AbortFetch()
         {
-            layer.AbortFetch();
-
-            layer.DataChanged -= LayerDataChanged;
-            layer.PropertyChanged -= LayerPropertyChanged;
-
-            InfoLayers.Remove(layer);
-
-            Resolutions = DetermineResolutions(Layers);
-
-            OnPropertyChanged(nameof(Layers));
-        }
-
-        public void InvokeInfo(Point screenPosition, float scale, ISymbolCache symbolCache)
-        {
-            if (Info == null) return;
-            var eventArgs = InfoHelper.GetInfoEventArgs(Viewport, screenPosition, scale, InfoLayers, symbolCache);
-            if (eventArgs != null) Info?.Invoke(this, eventArgs);
-        }
-
-        private InfoEventArgs _previousHoverEventArgs;
-
-        public void InvokeHover(Point screenPosition, float scale, ISymbolCache symbolCache)
-        {
-            if (Hover== null) return;
-            if (HoverLayers.Count == 0) return;
-            var hoverEventArgs = InfoHelper.GetInfoEventArgs(Viewport, screenPosition, scale, HoverLayers, symbolCache);
-            if (hoverEventArgs?.Feature != _previousHoverEventArgs?.Feature) // only notify when the feature changes
+            foreach (var layer in _layers.ToList())
             {
-                _previousHoverEventArgs = hoverEventArgs;
-                Hover?.Invoke(this, hoverEventArgs);
+                if (layer is IAsyncDataFetcher asyncLayer) asyncLayer.AbortFetch();
+            }
+        }
+
+        /// <summary>
+        /// Clear cache of all layers
+        /// </summary>
+        public void ClearCache()
+        {
+            foreach (var layer in _layers)
+            {
+                if (layer is IAsyncDataFetcher asyncLayer) asyncLayer.ClearCache();
+            }
+        }
+
+        public void RefreshData(BoundingBox extent, double resolution, bool majorChange)
+        {
+            foreach (var layer in _layers.ToList())
+            {
+                layer.RefreshData(extent, resolution, majorChange);
             }
         }
 
@@ -229,23 +196,60 @@ namespace Mapsui
             OnPropertyChanged(nameof(Layers));
         }
 
-        private static IReadOnlyList<double> DetermineResolutions(LayerCollection layers)
+        private void LayersLayerRemoved(ILayer layer)
         {
-            var baseLayer = layers.FirstOrDefault(l => l.Enabled && l.Resolutions != null && l.Resolutions.Count > 0);
-            if (baseLayer == null) return new List<double>();
-            return baseLayer.Resolutions;
+            if (layer is IAsyncDataFetcher asyncLayer)
+            {
+                asyncLayer.AbortFetch();
+            }
+
+            layer.DataChanged -= LayerDataChanged;
+            layer.PropertyChanged -= LayerPropertyChanged;
+
+            Resolutions = DetermineResolutions(Layers);
+
+            OnPropertyChanged(nameof(Layers));
+        }
+
+        private static IReadOnlyList<double> DetermineResolutions(IEnumerable<ILayer> layers)
+        {
+            var items = new Dictionary<double, double>();
+            const float normalizedDistanceThreshold = 0.75f;
+            foreach (var layer in layers)
+            {
+                if (!layer.Enabled || layer.Resolutions == null) continue;
+
+                foreach (var resolution in layer.Resolutions)
+                {
+                    // About normalization:
+                    // Resolutions don't have equal distances because they 
+                    // are multiplied by two at every step. Distances on the 
+                    // lower zoom levels have very different meaning than on the
+                    // higher zoom levels. So we work with a normalized resolution
+                    // to determine if another resolution adds value. If a resolution
+                    // is a factor of 2 of another resolution. The normalized distance
+                    // is one.
+                    var normalized = Math.Log(resolution, 2);
+                    if (items.Count == 0)
+                    {
+                        items[normalized] = resolution;
+                    }
+                    else
+                    {
+                        var normalizedDistance = items.Keys.Min(k => Math.Abs(k - normalized));
+                        if (normalizedDistance > normalizedDistanceThreshold) items[normalized] = resolution;
+                    }
+                }
+            }
+
+            return items.Select(i => i.Value).OrderByDescending(i => i).ToList();
         }
 
         private void LayerPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             OnPropertyChanged(sender, e.PropertyName);
         }
-
-        private void OnRefreshGraphics()
-        {
-            RefreshGraphics?.Invoke(this, EventArgs.Empty);
-        }
-
+        
         private void OnPropertyChanged(object sender, string propertyName)
         {
             PropertyChanged?.Invoke(sender, new PropertyChangedEventArgs(propertyName));
@@ -260,34 +264,12 @@ namespace Mapsui
         {
             OnDataChanged(sender, e);
         }
-        
+
         private void OnDataChanged(object sender, DataChangedEventArgs e)
         {
             DataChanged?.Invoke(sender, e);
         }
 
-        public void AbortFetch()
-        {
-            foreach (var layer in _layers.ToList())
-            {
-                layer.AbortFetch();
-            }
-        }
-
-        public void ViewChanged(bool majorChange)
-        {
-            foreach (var layer in _layers.ToList())
-            {
-                layer.ViewChanged(majorChange, Viewport.Extent, Viewport.Resolution);
-            }
-        }
-
-        public void ClearCache()
-        {
-            foreach (var layer in _layers)
-            {
-                layer.ClearCache();
-            }
-        }
+        public Action<INavigator> Home { get; set; } = n => n.NavigateToFullEnvelope();
     }
 }

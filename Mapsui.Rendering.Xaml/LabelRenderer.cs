@@ -8,7 +8,7 @@ namespace Mapsui.Rendering.Xaml
 {
     internal static class LabelRenderer
     {
-        public static UIElement RenderLabel(Geometries.Point position, LabelStyle labelStyle, IViewport viewport, 
+        public static UIElement RenderLabel(Geometries.Point position, LabelStyle labelStyle, IReadOnlyViewport viewport, 
             string labelText)
         {
             var screenPosition = viewport.WorldToScreen(position);
@@ -40,19 +40,21 @@ namespace Mapsui.Rendering.Xaml
 
             var border = new Border
             {
-                Background = labelStyle.BackColor.ToXaml(),
+                // TODO: We have no SymbolCache, so we get problems, if there is a bitmap as background
+                Background = labelStyle.BackColor.ToXaml(rotate: (float)viewport.Rotation),
                 CornerRadius = new CornerRadius(4),
-                Child = textblock
+                Child = textblock,
+                Opacity = labelStyle.Opacity,
             };
 
-            double textWidth;
-            double textHeight;
+            DetermineTextWidthAndHeightWpf(out var textWidth, out var textHeight, labelStyle, labelText);
 
-            DetermineTextWidthAndHeightWpf(out textWidth, out textHeight, labelStyle, labelText);
+            var offsetX = labelStyle.Offset.IsRelative ? textWidth * labelStyle.Offset.X : labelStyle.Offset.X;
+            var offsetY = labelStyle.Offset.IsRelative ? textHeight * labelStyle.Offset.Y : labelStyle.Offset.Y;
 
-            border.SetValue(Canvas.LeftProperty, windowsPosition.X + labelStyle.Offset.X
+            border.SetValue(Canvas.LeftProperty, windowsPosition.X + offsetX
                 - (textWidth + 2 * witdhMargin) * (short)labelStyle.HorizontalAlignment * 0.5f);
-            border.SetValue(Canvas.TopProperty, windowsPosition.Y + labelStyle.Offset.Y
+            border.SetValue(Canvas.TopProperty, windowsPosition.Y + offsetY
                 - (textHeight + 2 * heightMargin) * (short)labelStyle.VerticalAlignment * 0.5f);
 
             return border;

@@ -1,10 +1,11 @@
 ﻿{
   "dependencies": {
-    "BruTile": "0.22.1",
-    "Microsoft.NETCore.UniversalWindowsPlatform": "6.0.1",
-    "SkiaSharp": "1.59.2",
-    "SkiaSharp.Views": "1.59.2",
-    "SQLitePCLRaw.bundle_green": "1.1.8"
+    "BruTile": "2.0.1",
+    "Microsoft.NETCore.UniversalWindowsPlatform": "6.2.0-Preview1-26502-02",
+    "SkiaSharp": "1.60.1",
+    "SkiaSharp.Views": "1.60.1",
+    "SQLitePCLRaw.bundle_green": "1.1.11",
+    "System.ValueTuple": "4.5.0-rc1"
   },
   "frameworks": {
     "uap10.0.10586": {}
