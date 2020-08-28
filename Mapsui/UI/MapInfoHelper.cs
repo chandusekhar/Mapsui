@@ -32,6 +32,14 @@ namespace Mapsui.UI
         private static MapInfo GetMapInfo(IEnumerable<ILayer> layers, Point worldPosition,
             Point screenPosition, double resolution, ISymbolCache symbolCache, int margin = 0)
         {
+            // return MapInfoEventArgs without feature if none was found. Can be usefull to create features
+            var result = new MapInfo
+            {
+                WorldPosition = worldPosition,
+                ScreenPosition = screenPosition,
+                Resolution = resolution
+            };
+
             var reversedLayer = layers.Reverse();
             foreach (var layer in reversedLayer)
             {
@@ -39,30 +47,22 @@ namespace Mapsui.UI
                 if (layer.MinVisible > resolution) continue;
                 if (layer.MaxVisible < resolution) continue;
 
-                var features = layer.GetFeaturesInView(layer.Envelope, resolution);
+                var maxSymbolSize = 128; // This sucks. There should be a better way to determine max symbol size.
+                var box = new BoundingBox(worldPosition, worldPosition);
+                var grownBox = box.Grow(resolution * maxSymbolSize * 0.5);
+                var features = layer.GetFeaturesInView(grownBox, resolution);
 
                 var feature = features.LastOrDefault(f => 
                     IsTouchingTakingIntoAccountSymbolStyles(worldPosition, f, layer.Style, resolution, symbolCache, margin));
 
                 if (feature != null)
                 {
-                    return new MapInfo
-                    {
-                        Feature = feature,
-                        Layer = layer,
-                        WorldPosition = worldPosition,
-                        ScreenPosition = screenPosition,
-                        Resolution = resolution
-                    };
-                }
+                    result.Feature = feature;
+                    result.Layer = layer;
+                }               
             }
 
-            // return MapInfoEventArgs without feature if none was found. Can be usefull to create features
-            return new MapInfo
-            {
-                WorldPosition = worldPosition,
-                ScreenPosition = screenPosition
-            };
+            return result;
         }
 
         private static bool IsTouchingTakingIntoAccountSymbolStyles(Point point, IFeature feature, IStyle layerStyle, 

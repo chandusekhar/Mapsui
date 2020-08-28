@@ -16,6 +16,7 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -39,6 +40,7 @@ namespace Mapsui
     {
         private LayerCollection _layers = new LayerCollection();
         private Color _backColor = Color.White;
+        private IViewportLimiter _limiter = new ViewportLimiter();
 
         /// <summary>
         /// Initializes a new map
@@ -50,11 +52,45 @@ namespace Mapsui
         }
 
         /// <summary>
+        /// To register if the initial Home call has been done.
+        /// </summary>
+        public bool Initialized { get; set; }
+
+        /// <summary>
+        /// When true the user can not pan (move) the map.
+        /// </summary>
+        public bool PanLock { get; set; }
+
+        /// <summary>
+        /// When true the user an not rotate the map
+        /// </summary>
+        public bool ZoomLock { get; set; }
+
+        /// <summary>
+        /// When true the user can not zoom into the map
+        /// </summary>
+        public bool RotationLock { get; set; }
+
+        /// <summary>
         /// List of Widgets belonging to map
         /// </summary>
-        public List<IWidget> Widgets { get; } = new List<IWidget>();
+        public ConcurrentQueue<IWidget> Widgets { get; } = new ConcurrentQueue<IWidget>();
 
-        public ILimits Limits { get; } = new Limits();
+        /// <summary>
+        /// Limit the extent to which the user can navigate
+        /// </summary>
+        public IViewportLimiter Limiter
+        {
+            get => _limiter;
+            set
+            {
+                if (!_limiter.Equals(value))
+                {
+                    _limiter = value;
+                    OnPropertyChanged(nameof(Limiter));
+                }
+            }
+        }
 
         /// <summary>
         /// Projection type of Map. Normally in format like "EPSG:3857"
@@ -177,11 +213,11 @@ namespace Mapsui
             }
         }
 
-        public void RefreshData(BoundingBox extent, double resolution, bool majorChange)
+        public void RefreshData(BoundingBox extent, double resolution, ChangeType changeType)
         {
             foreach (var layer in _layers.ToList())
             {
-                layer.RefreshData(extent, resolution, majorChange);
+                layer.RefreshData(extent, resolution, changeType);
             }
         }
 
@@ -271,5 +307,11 @@ namespace Mapsui
         }
 
         public Action<INavigator> Home { get; set; } = n => n.NavigateToFullEnvelope();
+
+        public IEnumerable<IWidget> GetWidgetsOfMapAndLayers()
+        {
+            return Widgets.Concat(Layers.Where(l => l.Enabled).Select(l => l.Attribution))
+                .Where(a => a != null && a.Enabled).ToList();
+        }
     }
 }

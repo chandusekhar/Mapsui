@@ -10,7 +10,7 @@
     <meta name="viewport" content="width=device-width">
     <meta name="title" content="Class BoundingBox
    ">
-    <meta name="generator" content="docfx 2.37.2.0">
+    <meta name="generator" content="docfx 2.48.0.0">
     
     <link rel="shortcut icon" href="../images/favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -19,7 +19,7 @@
     <meta property="docfx:navrel" content="../toc.html">
     <meta property="docfx:tocrel" content="toc.html">
     
-    
+    <meta property="docfx:rel" content="../">
     
   </head>
   <body data-spy="scroll" data-target="#affix" data-offset="120">
@@ -58,6 +58,16 @@
           </div>
         </div>
       </header>
+      <div class="container body-content">
+        
+        <div id="search-results">
+          <div class="search-list"></div>
+          <div class="sr-items">
+            <p><i class="glyphicon glyphicon-refresh index-loading"></i></p>
+          </div>
+          <ul id="pagination"></ul>
+        </div>
+      </div>
       <div role="main" class="container body-content hide-when-search">
         
         <div class="sidenav hide-when-search">
@@ -80,6 +90,25 @@
     <h5>Inheritance</h5>
     <div class="level0"><span class="xref">System.Object</span></div>
     <div class="level1"><span class="xref">BoundingBox</span></div>
+  </div>
+  <div classs="implements">
+    <h5>Implements</h5>
+    <div><span class="xref">System.IEquatable</span>&lt;<a class="xref" href="Mapsui.Geometries.BoundingBox.html">BoundingBox</a>&gt;</div>
+  </div>
+  <div class="inheritedMembers">
+    <h5>Inherited Members</h5>
+    <div>
+      <span class="xref">System.Object.Equals(System.Object, System.Object)</span>
+    </div>
+    <div>
+      <span class="xref">System.Object.GetType()</span>
+    </div>
+    <div>
+      <span class="xref">System.Object.MemberwiseClone()</span>
+    </div>
+    <div>
+      <span class="xref">System.Object.ReferenceEquals(System.Object, System.Object)</span>
+    </div>
   </div>
   <h6><strong>Namespace</strong>: <a class="xref" href="Mapsui.Geometries.html">Mapsui.Geometries</a></h6>
   <h6><strong>Assembly</strong>: Mapsui.Geometries.dll</h6>
@@ -107,73 +136,6 @@
   <div class="codewrapper">
     <pre><code class="lang-csharp hljs">public BoundingBox()</code></pre>
   </div>
-  <span class="small pull-right mobile-hide">
-    <span class="divider">|</span>
-    <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox__ctor_IEnumerable_Mapsui_Geometries_BoundingBox__.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.%23ctor(IEnumerable%7BMapsui.Geometries.BoundingBox%7D)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
-  </span>
-  <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L76">View Source</a>
-  </span>
-  <a id="Mapsui_Geometries_BoundingBox__ctor_" data-uid="Mapsui.Geometries.BoundingBox.#ctor*"></a>
-  <h4 id="Mapsui_Geometries_BoundingBox__ctor_IEnumerable_Mapsui_Geometries_BoundingBox__" data-uid="Mapsui.Geometries.BoundingBox.#ctor(IEnumerable{Mapsui.Geometries.BoundingBox})">BoundingBox(IEnumerable&lt;BoundingBox&gt;)</h4>
-  <div class="markdown level1 summary"><p>Initializes a new Bounding Box based on the bounds from a set of bounding boxes</p>
-</div>
-  <div class="markdown level1 conceptual"></div>
-  <h5 class="decalaration">Declaration</h5>
-  <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public BoundingBox(IEnumerable&lt;BoundingBox&gt; boundingBoxes)</code></pre>
-  </div>
-  <h5 class="parameters">Parameters</h5>
-  <table class="table table-bordered table-striped table-condensed">
-    <thead>
-      <tr>
-        <th>Type</th>
-        <th>Name</th>
-        <th>Description</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><span class="xref">IEnumerable</span>&lt;<a class="xref" href="Mapsui.Geometries.BoundingBox.html">BoundingBox</a>&gt;</td>
-        <td><span class="parametername">boundingBoxes</span></td>
-        <td></td>
-      </tr>
-    </tbody>
-  </table>
-  <span class="small pull-right mobile-hide">
-    <span class="divider">|</span>
-    <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox__ctor_IEnumerable_Mapsui_Geometries_Geometry__.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.%23ctor(IEnumerable%7BMapsui.Geometries.Geometry%7D)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
-  </span>
-  <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L71">View Source</a>
-  </span>
-  <a id="Mapsui_Geometries_BoundingBox__ctor_" data-uid="Mapsui.Geometries.BoundingBox.#ctor*"></a>
-  <h4 id="Mapsui_Geometries_BoundingBox__ctor_IEnumerable_Mapsui_Geometries_Geometry__" data-uid="Mapsui.Geometries.BoundingBox.#ctor(IEnumerable{Mapsui.Geometries.Geometry})">BoundingBox(IEnumerable&lt;Geometry&gt;)</h4>
-  <div class="markdown level1 summary"><p>Initializes a new Bounding Box based on the bounds from a set of geometries</p>
-</div>
-  <div class="markdown level1 conceptual"></div>
-  <h5 class="decalaration">Declaration</h5>
-  <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public BoundingBox(IEnumerable&lt;Geometry&gt; objects)</code></pre>
-  </div>
-  <h5 class="parameters">Parameters</h5>
-  <table class="table table-bordered table-striped table-condensed">
-    <thead>
-      <tr>
-        <th>Type</th>
-        <th>Name</th>
-        <th>Description</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><span class="xref">IEnumerable</span>&lt;<a class="xref" href="Mapsui.Geometries.Geometry.html">Geometry</a>&gt;</td>
-        <td><span class="parametername">objects</span></td>
-        <td><p>list of objects</p>
-</td>
-      </tr>
-    </tbody>
-  </table>
   <span class="small pull-right mobile-hide">
     <span class="divider">|</span>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox__ctor_Mapsui_Geometries_BoundingBox_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.%23ctor(Mapsui.Geometries.BoundingBox)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
@@ -242,6 +204,73 @@
         <td><a class="xref" href="Mapsui.Geometries.Point.html">Point</a></td>
         <td><span class="parametername">maxPoint</span></td>
         <td><p>Upper right corner</p>
+</td>
+      </tr>
+    </tbody>
+  </table>
+  <span class="small pull-right mobile-hide">
+    <span class="divider">|</span>
+    <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox__ctor_System_Collections_Generic_IEnumerable_Mapsui_Geometries_BoundingBox__.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.%23ctor(System.Collections.Generic.IEnumerable%7BMapsui.Geometries.BoundingBox%7D)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
+  </span>
+  <span class="small pull-right mobile-hide">
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L76">View Source</a>
+  </span>
+  <a id="Mapsui_Geometries_BoundingBox__ctor_" data-uid="Mapsui.Geometries.BoundingBox.#ctor*"></a>
+  <h4 id="Mapsui_Geometries_BoundingBox__ctor_System_Collections_Generic_IEnumerable_Mapsui_Geometries_BoundingBox__" data-uid="Mapsui.Geometries.BoundingBox.#ctor(System.Collections.Generic.IEnumerable{Mapsui.Geometries.BoundingBox})">BoundingBox(IEnumerable&lt;BoundingBox&gt;)</h4>
+  <div class="markdown level1 summary"><p>Initializes a new Bounding Box based on the bounds from a set of bounding boxes</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+  <h5 class="decalaration">Declaration</h5>
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public BoundingBox(IEnumerable&lt;BoundingBox&gt; boundingBoxes)</code></pre>
+  </div>
+  <h5 class="parameters">Parameters</h5>
+  <table class="table table-bordered table-striped table-condensed">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Name</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="xref">System.Collections.Generic.IEnumerable</span>&lt;<a class="xref" href="Mapsui.Geometries.BoundingBox.html">BoundingBox</a>&gt;</td>
+        <td><span class="parametername">boundingBoxes</span></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  <span class="small pull-right mobile-hide">
+    <span class="divider">|</span>
+    <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox__ctor_System_Collections_Generic_IEnumerable_Mapsui_Geometries_Geometry__.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.%23ctor(System.Collections.Generic.IEnumerable%7BMapsui.Geometries.Geometry%7D)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
+  </span>
+  <span class="small pull-right mobile-hide">
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L71">View Source</a>
+  </span>
+  <a id="Mapsui_Geometries_BoundingBox__ctor_" data-uid="Mapsui.Geometries.BoundingBox.#ctor*"></a>
+  <h4 id="Mapsui_Geometries_BoundingBox__ctor_System_Collections_Generic_IEnumerable_Mapsui_Geometries_Geometry__" data-uid="Mapsui.Geometries.BoundingBox.#ctor(System.Collections.Generic.IEnumerable{Mapsui.Geometries.Geometry})">BoundingBox(IEnumerable&lt;Geometry&gt;)</h4>
+  <div class="markdown level1 summary"><p>Initializes a new Bounding Box based on the bounds from a set of geometries</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+  <h5 class="decalaration">Declaration</h5>
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public BoundingBox(IEnumerable&lt;Geometry&gt; objects)</code></pre>
+  </div>
+  <h5 class="parameters">Parameters</h5>
+  <table class="table table-bordered table-striped table-condensed">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Name</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="xref">System.Collections.Generic.IEnumerable</span>&lt;<a class="xref" href="Mapsui.Geometries.Geometry.html">Geometry</a>&gt;</td>
+        <td><span class="parametername">objects</span></td>
+        <td><p>list of objects</p>
 </td>
       </tr>
     </tbody>
@@ -399,7 +428,7 @@
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Centroid.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Centroid%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L485">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L486">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Centroid_" data-uid="Mapsui.Geometries.BoundingBox.Centroid*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Centroid" data-uid="Mapsui.Geometries.BoundingBox.Centroid">Centroid</h4>
@@ -894,7 +923,7 @@
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Clone.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Clone%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L497">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L498">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Clone_" data-uid="Mapsui.Geometries.BoundingBox.Clone*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Clone" data-uid="Mapsui.Geometries.BoundingBox.Clone">Clone()</h4>
@@ -925,7 +954,7 @@
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Contains_Mapsui_Geometries_BoundingBox_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Contains(Mapsui.Geometries.BoundingBox)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L272">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L273">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Contains_" data-uid="Mapsui.Geometries.BoundingBox.Contains*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Contains_Mapsui_Geometries_BoundingBox_" data-uid="Mapsui.Geometries.BoundingBox.Contains(Mapsui.Geometries.BoundingBox)">Contains(BoundingBox)</h4>
@@ -975,7 +1004,7 @@
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Contains_Mapsui_Geometries_Point_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Contains(Mapsui.Geometries.Point)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L430">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L431">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Contains_" data-uid="Mapsui.Geometries.BoundingBox.Contains*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Contains_Mapsui_Geometries_Point_" data-uid="Mapsui.Geometries.BoundingBox.Contains(Mapsui.Geometries.Point)">Contains(Point)</h4>
@@ -1025,7 +1054,7 @@
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Distance_Mapsui_Geometries_BoundingBox_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Distance(Mapsui.Geometries.BoundingBox)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L450">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L451">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Distance_" data-uid="Mapsui.Geometries.BoundingBox.Distance*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Distance_Mapsui_Geometries_BoundingBox_" data-uid="Mapsui.Geometries.BoundingBox.Distance(Mapsui.Geometries.BoundingBox)">Distance(BoundingBox)</h4>
@@ -1077,7 +1106,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Distance_Mapsui_Geometries_Point_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Distance(Mapsui.Geometries.Point)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L469">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L470">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Distance_" data-uid="Mapsui.Geometries.BoundingBox.Distance*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Distance_Mapsui_Geometries_Point_" data-uid="Mapsui.Geometries.BoundingBox.Distance(Mapsui.Geometries.Point)">Distance(Point)</h4>
@@ -1177,7 +1206,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Equals_System_Object_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Equals(System.Object)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L516">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L517">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Equals_" data-uid="Mapsui.Geometries.BoundingBox.Equals*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Equals_System_Object_" data-uid="Mapsui.Geometries.BoundingBox.Equals(System.Object)">Equals(Object)</h4>
@@ -1220,12 +1249,14 @@ distance is the Euclidean distance between the closest points.</p>
       </tr>
     </tbody>
   </table>
+  <h5 class="overrides">Overrides</h5>
+  <div><span class="xref">System.Object.Equals(System.Object)</span></div>
   <span class="small pull-right mobile-hide">
     <span class="divider">|</span>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_GetArea.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.GetArea%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L302">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L303">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_GetArea_" data-uid="Mapsui.Geometries.BoundingBox.GetArea*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_GetArea" data-uid="Mapsui.Geometries.BoundingBox.GetArea">GetArea()</h4>
@@ -1257,7 +1288,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_GetCentroid.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.GetCentroid%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L487">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L488">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_GetCentroid_" data-uid="Mapsui.Geometries.BoundingBox.GetCentroid*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_GetCentroid" data-uid="Mapsui.Geometries.BoundingBox.GetCentroid">GetCentroid()</h4>
@@ -1265,7 +1296,8 @@ distance is the Euclidean distance between the closest points.</p>
   <div class="markdown level1 conceptual"></div>
   <h5 class="decalaration">Declaration</h5>
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public Point GetCentroid()</code></pre>
+    <pre><code class="lang-csharp hljs">[Obsolete(&quot;Use the Centroid field instead&quot;)]
+public Point GetCentroid()</code></pre>
   </div>
   <h5 class="returns">Returns</h5>
   <table class="table table-bordered table-striped table-condensed">
@@ -1287,7 +1319,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_GetHashCode.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.GetHashCode%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L527">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L528">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_GetHashCode_" data-uid="Mapsui.Geometries.BoundingBox.GetHashCode*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_GetHashCode" data-uid="Mapsui.Geometries.BoundingBox.GetHashCode">GetHashCode()</h4>
@@ -1314,12 +1346,14 @@ distance is the Euclidean distance between the closest points.</p>
       </tr>
     </tbody>
   </table>
+  <h5 class="overrides">Overrides</h5>
+  <div><span class="xref">System.Object.GetHashCode()</span></div>
   <span class="small pull-right mobile-hide">
     <span class="divider">|</span>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_GetIntersectingArea_Mapsui_Geometries_BoundingBox_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.GetIntersectingArea(Mapsui.Geometries.BoundingBox)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L312">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L313">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_GetIntersectingArea_" data-uid="Mapsui.Geometries.BoundingBox.GetIntersectingArea*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_GetIntersectingArea_Mapsui_Geometries_BoundingBox_" data-uid="Mapsui.Geometries.BoundingBox.GetIntersectingArea(Mapsui.Geometries.BoundingBox)">GetIntersectingArea(BoundingBox)</h4>
@@ -1369,7 +1403,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Grow_System_Double_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Grow(System.Double)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L380">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L381">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Grow_" data-uid="Mapsui.Geometries.BoundingBox.Grow*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Grow_System_Double_" data-uid="Mapsui.Geometries.BoundingBox.Grow(System.Double)">Grow(Double)</h4>
@@ -1418,7 +1452,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Grow_System_Double_System_Double_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Grow(System.Double%2CSystem.Double)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L396">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L397">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Grow_" data-uid="Mapsui.Geometries.BoundingBox.Grow*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Grow_System_Double_System_Double_" data-uid="Mapsui.Geometries.BoundingBox.Grow(System.Double,System.Double)">Grow(Double, Double)</h4>
@@ -1521,7 +1555,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Join_Mapsui_Geometries_BoundingBox_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Join(Mapsui.Geometries.BoundingBox)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L336">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L337">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Join_" data-uid="Mapsui.Geometries.BoundingBox.Join*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Join_Mapsui_Geometries_BoundingBox_" data-uid="Mapsui.Geometries.BoundingBox.Join(Mapsui.Geometries.BoundingBox)">Join(BoundingBox)</h4>
@@ -1571,7 +1605,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Join_Mapsui_Geometries_BoundingBox_Mapsui_Geometries_BoundingBox_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Join(Mapsui.Geometries.BoundingBox%2CMapsui.Geometries.BoundingBox)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L350">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L351">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Join_" data-uid="Mapsui.Geometries.BoundingBox.Join*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Join_Mapsui_Geometries_BoundingBox_Mapsui_Geometries_BoundingBox_" data-uid="Mapsui.Geometries.BoundingBox.Join(Mapsui.Geometries.BoundingBox,Mapsui.Geometries.BoundingBox)">Join(BoundingBox, BoundingBox)</h4>
@@ -1624,7 +1658,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Join_Mapsui_Geometries_BoundingBox___.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Join(Mapsui.Geometries.BoundingBox%5B%5D)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L364">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L365">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Join_" data-uid="Mapsui.Geometries.BoundingBox.Join*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Join_Mapsui_Geometries_BoundingBox___" data-uid="Mapsui.Geometries.BoundingBox.Join(Mapsui.Geometries.BoundingBox[])">Join(BoundingBox[])</h4>
@@ -1745,7 +1779,7 @@ distance is the Euclidean distance between the closest points.</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Rotate_System_Double_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Rotate(System.Double)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L413">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L414">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Rotate_" data-uid="Mapsui.Geometries.BoundingBox.Rotate*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Rotate_System_Double_" data-uid="Mapsui.Geometries.BoundingBox.Rotate(System.Double)">Rotate(Double)</h4>
@@ -1796,7 +1830,7 @@ specified angle clockwise</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_ToString.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.ToString%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L506">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L507">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_ToString_" data-uid="Mapsui.Geometries.BoundingBox.ToString*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_ToString" data-uid="Mapsui.Geometries.BoundingBox.ToString">ToString()</h4>
@@ -1823,12 +1857,14 @@ specified angle clockwise</p>
       </tr>
     </tbody>
   </table>
+  <h5 class="overrides">Overrides</h5>
+  <div><span class="xref">System.Object.ToString()</span></div>
   <span class="small pull-right mobile-hide">
     <span class="divider">|</span>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Touches_Mapsui_Geometries_BoundingBox_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Touches(Mapsui.Geometries.BoundingBox)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L254">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L255">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Touches_" data-uid="Mapsui.Geometries.BoundingBox.Touches*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Touches_Mapsui_Geometries_BoundingBox_" data-uid="Mapsui.Geometries.BoundingBox.Touches(Mapsui.Geometries.BoundingBox)">Touches(BoundingBox)</h4>
@@ -1878,7 +1914,7 @@ specified angle clockwise</p>
     <a href="https://github.com/Mapsui/Mapsui/new/master/apiSpec/new?filename=Mapsui_Geometries_BoundingBox_Touches_Mapsui_Geometries_Point_.md&amp;value=---%0Auid%3A%20Mapsui.Geometries.BoundingBox.Touches(Mapsui.Geometries.Point)%0Asummary%3A%20'*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax'%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">Improve this Doc</a>
   </span>
   <span class="small pull-right mobile-hide">
-    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L287">View Source</a>
+    <a href="https://github.com/Mapsui/Mapsui/blob/master/Mapsui.Geometries/BoundingBox.cs/#L288">View Source</a>
   </span>
   <a id="Mapsui_Geometries_BoundingBox_Touches_" data-uid="Mapsui.Geometries.BoundingBox.Touches*"></a>
   <h4 id="Mapsui_Geometries_BoundingBox_Touches_Mapsui_Geometries_Point_" data-uid="Mapsui.Geometries.BoundingBox.Touches(Mapsui.Geometries.Point)">Touches(Point)</h4>
@@ -1923,7 +1959,14 @@ specified angle clockwise</p>
       </tr>
     </tbody>
   </table>
+  <h3 id="implements">Implements</h3>
+  <div>
+      <span class="xref">System.IEquatable&lt;T&gt;</span>
+  </div>
   <h3 id="extensionmethods">Extension Methods</h3>
+  <div>
+      <a class="xref" href="Mapsui.Rendering.Skia.BoundingBoxExtensions.html#Mapsui_Rendering_Skia_BoundingBoxExtensions_ToSkia_Mapsui_Geometries_BoundingBox_">BoundingBoxExtensions.ToSkia(BoundingBox)</a>
+  </div>
   <div>
       <a class="xref" href="Mapsui.Geometries.BoundingBoxExtensions.html#Mapsui_Geometries_BoundingBoxExtensions_Copy_Mapsui_Geometries_BoundingBox_">BoundingBoxExtensions.Copy(BoundingBox)</a>
   </div>

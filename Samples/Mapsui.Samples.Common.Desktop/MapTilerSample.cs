@@ -3,12 +3,21 @@ using BruTile.Cache;
 using BruTile.FileSystem;
 using BruTile.Predefined;
 using Mapsui.Layers;
+using Mapsui.UI;
 using Attribution = BruTile.Attribution;
 
 namespace Mapsui.Samples.Common.Desktop
 {
-    public static class MapTilerSample
+    public class MapTilerSample : ISample
     {
+        public string Name => "5 Map Tiler";
+        public string Category => "Desktop";
+
+        public void Setup(IMapControl mapControl)
+        {
+            mapControl.Map = CreateMap();
+        }
+
         public static Map CreateMap()
         {
             var map = new Map();
@@ -50,8 +59,8 @@ namespace Mapsui.Samples.Common.Desktop
         {
             var schema = new GlobalSphericalMercator(YAxis.TMS);
             schema.Resolutions.Clear();
-            schema.Resolutions["0"] = new Resolution("0", 156543.033900000);
-            schema.Resolutions["1"] = new Resolution("1", 78271.516950000);
+            schema.Resolutions[0] = new Resolution(0, 156543.033900000);
+            schema.Resolutions[1] = new Resolution(1, 78271.516950000);
             return schema;
         }
 

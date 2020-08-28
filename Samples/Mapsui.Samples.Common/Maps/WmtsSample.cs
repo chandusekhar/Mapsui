@@ -2,11 +2,20 @@
 using System.Net.Http;
 using BruTile.Wmts;
 using Mapsui.Layers;
+using Mapsui.UI;
 
 namespace Mapsui.Samples.Common.Maps
 {
-    public static class WmtsSample
+    public class WmtsSample : ISample
     {
+        public string Name => "3 WMTS";
+        public string Category => "Data";
+
+        public void Setup(IMapControl mapControl)
+        {
+            mapControl.Map = CreateMap();
+        }
+
         public static Map CreateMap()
         {
             var map = new Map();
@@ -17,8 +26,10 @@ namespace Mapsui.Samples.Common.Maps
 
         public static ILayer CreateLayer()
         {
+            var url = "http://geodata.nationaalgeoregister.nl/wmts/top10nl?VERSION=1.0.0&request=GetCapabilities";
+
             using (var httpClient = new HttpClient())
-            using (var response = httpClient.GetStreamAsync("http://geodata.nationaalgeoregister.nl/wmts/top10nl?VERSION=1.0.0&request=GetCapabilities").Result)
+            using (var response = httpClient.GetStreamAsync(url).Result)
             {
                 var tileSources = WmtsParser.Parse(response);
                 var nature2000TileSource = tileSources.First(t => t.Name == "natura2000");

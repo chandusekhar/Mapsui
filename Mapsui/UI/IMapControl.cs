@@ -8,17 +8,17 @@ namespace Mapsui.UI
 {
     public interface IMapControl
     {
+        event EventHandler<MapInfoEventArgs> Info;
+
         Map Map { get; set; }
 
         event EventHandler ViewportInitialized;
 
         void RefreshGraphics();
 
-        void RefreshData();
+        void RefreshData(ChangeType changeType = ChangeType.Discrete);
 
-        void Refresh();
-
-        bool RotationLock { get; set; }
+        void Refresh(ChangeType changeType = ChangeType.Discrete);
 
         double UnSnapRotationDegrees { get; set; }
 
@@ -26,14 +26,14 @@ namespace Mapsui.UI
 
         void Unsubscribe();
 
+        IRenderer Renderer { get; }
+
+        void OpenBrowser(string url); //todo: Perhaps remove
+
         /// <summary>
         /// The number of pixel per device independent unit
         /// </summary>
         float PixelDensity { get; }
-
-        IRenderer Renderer { get; }
-
-        void OpenBrowser(string url); //todo: Perhaps remove
 
         /// <summary>
         /// Converts coordinates in pixels to device independent units (or DIP or DP).
@@ -57,11 +57,13 @@ namespace Mapsui.UI
         MapInfo GetMapInfo(Point screenPosition, int margin = 0);
 
         /// <summary>
-        /// Check, if a feature at a given screen position is hit
+        /// Create a snapshot form map as PNG image
         /// </summary>
-        /// <param name="layers">The layers to query for MapInfo</param>
-        /// <param name="screenPosition">Screen position to check for widgets and features</param>
-        /// <param name="margin">An optional extra margin around the feature to enlarge the hit area.</param>
-        MapInfo GetMapInfo(IEnumerable<ILayer> layers, Point screenPosition, int margin = 0);
+        /// <param name="layers">Layers that should be included in snapshot</param>
+        /// <returns>Byte array with snapshot in png format. If there are any problems than returns null.</returns>
+        byte[] GetSnapshot(IEnumerable<ILayer> layers = null);
+
+        INavigator Navigator { get; }
+
     }
 }

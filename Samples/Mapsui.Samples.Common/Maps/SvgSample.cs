@@ -5,12 +5,21 @@ using Mapsui.Layers;
 using Mapsui.Providers;
 using Mapsui.Samples.Common.Helpers;
 using Mapsui.Styles;
+using Mapsui.UI;
 using Mapsui.Utilities;
 
 namespace Mapsui.Samples.Common.Maps
 {
-    public static class SvgSample
+    public class SvgSample : ISample
     {
+        public string Name => "Svg";
+        public string Category => "Symbols";
+
+        public void Setup(IMapControl mapControl)
+        {
+            mapControl.Map = CreateMap();
+        }
+
         public static Map CreateMap()
         {
             var map = new Map();
@@ -54,7 +63,7 @@ namespace Mapsui.Samples.Common.Maps
         private static SymbolStyle CreateSvgStyle(string embeddedResourcePath, double scale)
         {
             var bitmapId = GetBitmapIdForEmbeddedResource(embeddedResourcePath);
-            return new SymbolStyle { BitmapId = bitmapId, SymbolType = SymbolType.Svg, SymbolScale = scale, SymbolOffset = new Offset(0.0, 0.5, true) };
+            return new SymbolStyle { BitmapId = bitmapId, SymbolScale = scale, SymbolOffset = new Offset(0.0, 0.5, true) };
         }
 
         private static int GetBitmapIdForEmbeddedResource(string imagePath)

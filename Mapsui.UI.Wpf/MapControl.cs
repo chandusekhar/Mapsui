@@ -1,16 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using Mapsui.Layers;
 using Mapsui.Providers;
 using Mapsui.Rendering.Skia;
+using Mapsui.UI.Utils;
 using Mapsui.Utilities;
 using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
@@ -29,23 +28,22 @@ namespace Mapsui.UI.Wpf
 
     public partial class MapControl : Grid, IMapControl
     {
-        // ReSharper disable once UnusedMember.Local // This registration triggers the call to OnResolutionChanged
-        private static readonly DependencyProperty ResolutionProperty =
-            DependencyProperty.Register(
-                "Resolution", typeof(double), typeof(MapControl),
-                new PropertyMetadata(OnResolutionChanged));
-
         private readonly Rectangle _selectRectangle = CreateSelectRectangle();
-        private readonly DoubleAnimation _zoomAnimation = new DoubleAnimation();
-        private readonly Storyboard _zoomStoryBoard = new Storyboard();
         private Geometries.Point _currentMousePosition;
         private Geometries.Point _downMousePosition;
         private bool _mouseDown;
         private Geometries.Point _previousMousePosition;
         private RenderMode _renderMode;
-        private double _toResolution = double.NaN;
         private bool _hasBeenManipulated;
         private double _innerRotation;
+        private readonly FlingTracker _flingTracker = new FlingTracker();
+        
+        public MouseWheelAnimation MouseWheelAnimation { get; } = new MouseWheelAnimation();
+
+        /// <summary>
+        /// Fling is called, when user release mouse button or lift finger while moving with a certain speed, higher than speed of swipe 
+        /// </summary>
+        public event EventHandler<SwipedEventArgs> Fling;
 
         public MapControl()
         {
@@ -53,7 +51,6 @@ namespace Mapsui.UI.Wpf
             Children.Add(SkiaCanvas);
             Children.Add(_selectRectangle);
 
-            SkiaCanvas.IgnorePixelScaling = true;
             SkiaCanvas.PaintSurface += SKElementOnPaintSurface;
 
             Map = new Map();
@@ -102,10 +99,6 @@ namespace Mapsui.UI.Wpf
                 Visibility = Visibility.Collapsed
             };
         }
-        
-        private bool IsInBoxZoomMode { get; set; }
-
-        public bool ZoomToBoxMode { get; set; }
 
         public Canvas WpfCanvas { get; } = CreateWpfRenderCanvas();
 
@@ -131,6 +124,7 @@ namespace Mapsui.UI.Wpf
                     Renderer = new Rendering.Xaml.MapRenderer();
                     RefreshGraphics();
                 }
+                OnPropertyChanged();
             }
         }
 
@@ -152,14 +146,12 @@ namespace Mapsui.UI.Wpf
             };
         }
 
-        [Obsolete("Use Viewport.ViewportChanged", true)]
-        public event EventHandler<ViewChangedEventArgs> ViewChanged;
-
         public event EventHandler<FeatureInfoEventArgs> FeatureInfo; // todo: Remove and add sample for alternative
 
         public void RefreshGraphics()
         {
-            RunOnUIThread(InvalidateCanvas);
+            if (Dispatcher.CheckAccess()) InvalidateCanvas();
+            else RunOnUIThread(InvalidateCanvas);
         }
 
         internal void InvalidateCanvas()
@@ -169,114 +161,24 @@ namespace Mapsui.UI.Wpf
 
         }
 
-        [Obsolete("Use Navigator.ZoomIn instead", true)]
-        public void ZoomIn() {}
-
-        [Obsolete("Use Navigator.ZoomOut instead", true)]
-        public void ZoomOut() {}
-
-        private static void OnResolutionChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
-        {
-            var newResolution = (double)e.NewValue;
-            ((MapControl)dependencyObject).ZoomToResolution(newResolution);
-        }
-
-        private void ZoomToResolution(double resolution)
-        {
-            var current = _currentMousePosition;
-
-            _viewport.Transform(current.X, current.Y, current.X, current.Y, Viewport.Resolution / resolution);
-
-            ViewportLimiter.Limit(_viewport, _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions,
-                _map.Limits.PanMode, _map.Limits.PanLimits, _map.Envelope);
-
-            RefreshData(true); 
-            RefreshGraphics();
-        }
-
         private void MapControlLoaded(object sender, RoutedEventArgs e)
         {
             SetViewportSize();
 
-            InitAnimation();
             Focusable = true;
-        }
-        
-        public float PixelDensity => DeterminePixelDensity();
-
-        private float DeterminePixelDensity()
-        {
-            var presentationSource = PresentationSource.FromVisual(this);
-            if (presentationSource == null) throw new Exception("PresentationSource is null");
-            var compositionTarget = presentationSource.CompositionTarget;
-            if (compositionTarget == null) throw new Exception("CompositionTarget is null");
-
-            var matrix = compositionTarget.TransformToDevice;
-
-            var dpiX = matrix.M11;
-            var dpiY = matrix.M22;
-
-            if (dpiX != dpiY) throw new ArgumentException();
-
-            return (float)dpiX;
-        }
-
-        private void InitAnimation()
-        {
-            _zoomAnimation.Duration = new Duration(new TimeSpan(0, 0, 0, 0, 1000));
-            _zoomAnimation.EasingFunction = new QuarticEase();
-            Storyboard.SetTarget(_zoomAnimation, this);
-            Storyboard.SetTargetProperty(_zoomAnimation, new PropertyPath("Resolution"));
-            _zoomStoryBoard.Children.Add(_zoomAnimation);
         }
 
         private void MapControlMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (ZoomLock) return;
-            if (!_viewport.IsSizeInitialized()) return;
+            if (Map.ZoomLock) return;
+            if (!Viewport.HasSize) return;
 
             _currentMousePosition = e.GetPosition(this).ToMapsui();
-            //Needed for both MouseMove and MouseWheel event for mousewheel event
 
-            if (double.IsNaN(_toResolution))
-                _toResolution = Viewport.Resolution;
-
-            if (e.Delta > Constants.Epsilon)
-            {
-                var resolution = ZoomHelper.ZoomIn(_map.Resolutions, _toResolution);
-
-                _toResolution = ViewportLimiter.LimitResolution(resolution, ActualWidth, ActualHeight,
-                    _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions, _map.Envelope);
-
-            }
-            else if (e.Delta < Constants.Epsilon)
-            {
-                var resolution = ZoomHelper.ZoomOut(_map.Resolutions, _toResolution);
-
-                _toResolution = ViewportLimiter.LimitResolution(resolution, ActualWidth, ActualHeight,
-                    _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions, _map.Envelope);
-            }
-
-            // Some cheating to trigger a zoom animation if resolution does not change.
-            // This workaround could be ommitted if the zoom animations was on CenterX, CenterY and Resolution, not Resolution alone.
-            // todo: Remove this workaround once animations are centralized.
-            _viewport.SetCenter(_viewport.Center.X + 0.000000001, Viewport.Center.Y + 0.000000001);
-
-            StartZoomAnimation(Viewport.Resolution, _toResolution);
-        }
-
-        private void StartZoomAnimation(double begin, double end)
-        {
-            _zoomStoryBoard.Pause(); //using Stop() here causes unexpected results while zooming very fast.
-            _zoomAnimation.From = begin;
-            _zoomAnimation.To = end;
-            _zoomAnimation.Completed += ZoomAnimationCompleted;
-            _zoomStoryBoard.Begin();
-        }
-
-        private void ZoomAnimationCompleted(object sender, EventArgs e)
-        {
-            _toResolution = double.NaN;
+            var resolution = MouseWheelAnimation.GetResolution(e.Delta, _viewport, _map);
+            // Limit target resolution before animation to avoid an animation that is stuck on the max resolution, which would cause a needless delay
+            resolution = Map.Limiter.LimitResolution(resolution, Viewport.Width, Viewport.Height, Map.Resolutions, Map.Envelope);
+            Navigator.ZoomTo(resolution, _currentMousePosition, MouseWheelAnimation.Duration, MouseWheelAnimation.Easing);
         }
 
         private void MapControlSizeChanged(object sender, SizeChangedEventArgs e)
@@ -305,32 +207,38 @@ namespace Mapsui.UI.Wpf
 
         private void MapControlMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            // We have a new interaction with the screen, so stop all navigator animations
+            Navigator.StopRunningAnimation();
+
             var touchPosition = e.GetPosition(this).ToMapsui();
             _previousMousePosition = touchPosition;
             _downMousePosition = touchPosition;
             _mouseDown = true;
+            _flingTracker.Clear();
             CaptureMouse();
-            IsInBoxZoomMode = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
 
-            if (!IsInBoxZoomMode && !ZoomToBoxMode)
+            if (!IsInBoxZoomMode())
             {
                 if (IsClick(_currentMousePosition, _downMousePosition))
                 {
                     HandleFeatureInfo(e);
-                    OnInfo(InvokeInfo(Map.Layers.Where(l => l.IsMapInfoLayer), Map.Widgets, Viewport, 
-                        touchPosition, _downMousePosition, Renderer.SymbolCache, WidgetTouched, e.ClickCount));
+                    var mapInfoEventArgs = InvokeInfo(touchPosition, _downMousePosition, e.ClickCount);
+                    OnInfo(mapInfoEventArgs);
                 }
             }
+        }
+
+        private static bool IsInBoxZoomMode()
+        {
+            return Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
         }
 
         private void MapControlMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             var mousePosition = e.GetPosition(this).ToMapsui();
 
-            if (IsInBoxZoomMode || ZoomToBoxMode)
+            if (IsInBoxZoomMode())
             {
-                ZoomToBoxMode = false;
-                
                 var previous = Viewport.ScreenToWorld(_previousMousePosition.X, _previousMousePosition.Y);
                 var current = Viewport.ScreenToWorld(mousePosition.X, mousePosition.Y);
                 ZoomToBox(previous, current);
@@ -339,8 +247,39 @@ namespace Mapsui.UI.Wpf
             RefreshData();
             _mouseDown = false;
 
+            double velocityX;
+            double velocityY;
+
+            (velocityX, velocityY) = _flingTracker.CalcVelocity(1, DateTime.Now.Ticks);
+
+            if (Math.Abs(velocityX) > 200 || Math.Abs(velocityY) > 200)
+            {
+                // This was the last finger on screen, so this is a fling
+                e.Handled = OnFlinged(velocityX, velocityY);
+            }
+            _flingTracker.RemoveId(1);
+
             _previousMousePosition = new Geometries.Point();
             ReleaseMouseCapture();
+        }
+
+        /// <summary>
+        /// Called, when mouse/finger/pen flinged over map
+        /// </summary>
+        /// <param name="velocityX">Velocity in x direction in pixel/second</param>
+        /// <param name="velocityY">Velocity in y direction in pixel/second</param>
+        private bool OnFlinged(double velocityX, double velocityY)
+        {
+            var args = new SwipedEventArgs(velocityX, velocityY);
+
+            Fling?.Invoke(this, args);
+
+            if (args.Handled)
+                return true;
+
+            Navigator.FlingWith(velocityX, velocityY, 1000);
+
+            return true;
         }
 
         private static bool IsClick(Geometries.Point currentPosition, Geometries.Point previousPosition)
@@ -358,9 +297,7 @@ namespace Mapsui.UI.Wpf
                 // todo: Pass the touchDown position. It needs to be set at touch down.
 
                 // todo: Figure out how to do a number of taps for WPF
-                OnInfo(InvokeInfo(Map.Layers.Where(l => l.IsMapInfoLayer), Map.Widgets, Viewport, 
-                    touchPosition, touchPosition, Renderer.SymbolCache, 
-                    WidgetTouched, 1));
+                OnInfo(InvokeInfo(touchPosition, touchPosition, 1));
             }
         }
 
@@ -389,34 +326,37 @@ namespace Mapsui.UI.Wpf
 
         private void MapControlMouseMove(object sender, MouseEventArgs e)
         {
-            if (IsInBoxZoomMode || ZoomToBoxMode)
+            if (IsInBoxZoomMode())
             {
                 DrawBbox(e.GetPosition(this));
                 return;
             }
 
-            if (_mouseDown && !PanLock)
+            _currentMousePosition = e.GetPosition(this).ToMapsui(); //Needed for both MouseMove and MouseWheel event
+
+            if (_mouseDown)
             {
                 if (_previousMousePosition == null || _previousMousePosition.IsEmpty())
                 {
                     // Usually MapControlMouseLeftButton down initializes _previousMousePosition but in some
-                    // situations this can happen. So far I could only reproduce this by putting a breakpoint
-                    // and continuing.
-                    return; 
+                    // situations it can be null. So far I could only reproduce this in debug mode when putting
+                    // a breakpoint and continuing.
+                    return;
                 }
 
-                _currentMousePosition = e.GetPosition(this).ToMapsui(); //Needed for both MouseMove and MouseWheel event
+                _flingTracker.AddEvent(1, _currentMousePosition, DateTime.Now.Ticks);
 
-                _viewport.Transform(
-                    _currentMousePosition.X, _currentMousePosition.Y,
-                    _previousMousePosition.X, _previousMousePosition.Y);
-
-                ViewportLimiter.Limit(_viewport, _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions,
-                    _map.Limits.PanMode, _map.Limits.PanLimits, _map.Envelope);
-
-                _previousMousePosition = _currentMousePosition;
-                RefreshData(false);
+                _viewport.Transform(_currentMousePosition, _previousMousePosition);
                 RefreshGraphics();
+                _previousMousePosition = _currentMousePosition;
+            }
+            else
+            {
+                if (MouseWheelAnimation.IsAnimating())
+                {
+                    // Disabled because not performing:
+                    // Navigator.ZoomTo(_toResolution, _currentMousePosition, _mouseWheelAnimationDuration, Easing.QuarticOut);
+                }
 
             }
         }
@@ -431,13 +371,7 @@ namespace Mapsui.UI.Wpf
             ZoomHelper.ZoomToBoudingbox(beginPoint.X, beginPoint.Y, endPoint.X, endPoint.Y,
                 ActualWidth, ActualHeight, out var x, out var y, out var resolution);
 
-            resolution = ViewportLimiter.LimitResolution(resolution, Viewport.Width, Viewport.Height,
-                _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions, _map.Envelope);
-
-            _viewport.SetResolution(resolution);
-            _viewport.SetCenter(x, y);
-
-            _toResolution = resolution; // for animation
+            Navigator.NavigateTo(new Geometries.Point(x, y), resolution, 384);
 
             RefreshData();
             RefreshGraphics();
@@ -478,7 +412,7 @@ namespace Mapsui.UI.Wpf
         }
 
         private float ViewportWidth => (float)ActualWidth;
-        private float ViewportHeight => (float) ActualHeight;
+        private float ViewportHeight => (float)ActualHeight;
 
         private static void OnManipulationInertiaStarting(object sender, ManipulationInertiaStartingEventArgs e)
         {
@@ -488,6 +422,7 @@ namespace Mapsui.UI.Wpf
         private void OnManipulationStarted(object sender, ManipulationStartedEventArgs e)
         {
             _hasBeenManipulated = false;
+            _innerRotation = _viewport.Rotation;
         }
 
         private void OnManipulationDelta(object sender, ManipulationDeltaEventArgs e)
@@ -496,8 +431,8 @@ namespace Mapsui.UI.Wpf
             var center = e.ManipulationOrigin.ToMapsui().Offset(translation.X, translation.Y);
             var radius = GetDeltaScale(e.DeltaManipulation.Scale);
             var angle = e.DeltaManipulation.Rotation;
-            var prevCenter = e.ManipulationOrigin.ToMapsui();
-            var prevRadius = 1f;
+            var previousCenter = e.ManipulationOrigin.ToMapsui();
+            var previousRadius = 1f;
             var prevAngle = 0f;
 
             _hasBeenManipulated |= Math.Abs(e.DeltaManipulation.Translation.X) > SystemParameters.MinimumHorizontalDragDistance
@@ -505,7 +440,7 @@ namespace Mapsui.UI.Wpf
 
             double rotationDelta = 0;
 
-            if (!RotationLock)
+            if (!Map.RotationLock)
             {
                 _innerRotation += angle - prevAngle;
                 _innerRotation %= 360;
@@ -526,17 +461,14 @@ namespace Mapsui.UI.Wpf
                 }
             }
 
-            _viewport.Transform(center.X, center.Y, prevCenter.X, prevCenter.Y, radius / prevRadius, rotationDelta);
-
-            ViewportLimiter.Limit(_viewport, _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions,
-                _map.Limits.PanMode, _map.Limits.PanLimits, _map.Envelope);
-
+            _viewport.Transform(center, previousCenter, radius / previousRadius, rotationDelta);
+            RefreshGraphics();
             e.Handled = true;
         }
 
         private double GetDeltaScale(XamlVector scale)
         {
-            if (ZoomLock) return 1;
+            if (Map.ZoomLock) return 1;
             var deltaScale = (scale.X + scale.Y) / 2;
             if (Math.Abs(deltaScale) < Constants.Epsilon)
                 return 1; // If there is no scaling the deltaScale will be 0.0 in Windows Phone (while it is 1.0 in wpf)
@@ -553,16 +485,38 @@ namespace Mapsui.UI.Wpf
         {
             if (Renderer == null) return;
             if (_map == null) return;
+            if (PixelDensity <= 0) return;
 
-            Renderer.Render(args.Surface.Canvas, Viewport, Map.Layers, Map.Widgets, Map.BackColor);
+            args.Surface.Canvas.Scale(PixelDensity, PixelDensity);
+
+            Navigator.UpdateAnimations();
+            Renderer.Render(args.Surface.Canvas, new Viewport(Viewport), Map.Layers, Map.Widgets, Map.BackColor);
         }
-        
+
         private void PaintWpf()
         {
             if (Renderer == null) return;
             if (_map == null) return;
 
+            Navigator.UpdateAnimations();
             Renderer.Render(WpfCanvas, Viewport, _map.Layers, Map.Widgets, _map.BackColor);
+        }
+
+        private float GetPixelDensity()
+        {
+            var presentationSource = PresentationSource.FromVisual(this);
+            if (presentationSource == null) throw new Exception("PresentationSource is null");
+            var compositionTarget = presentationSource.CompositionTarget;
+            if (compositionTarget == null) throw new Exception("CompositionTarget is null");
+
+            var matrix = compositionTarget.TransformToDevice;
+
+            var dpiX = matrix.M11;
+            var dpiY = matrix.M22;
+
+            if (dpiX != dpiY) throw new ArgumentException();
+
+            return (float)dpiX;
         }
     }
 }

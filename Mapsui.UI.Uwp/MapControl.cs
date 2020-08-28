@@ -16,7 +16,6 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA f
 
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Windows.Devices.Sensors;
 using Windows.Foundation;
@@ -29,10 +28,10 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Shapes;
-using Mapsui.Utilities;
 using SkiaSharp.Views.UWP;
 using HorizontalAlignment = Windows.UI.Xaml.HorizontalAlignment;
 using VerticalAlignment = Windows.UI.Xaml.VerticalAlignment;
+using Mapsui.Utilities;
 
 namespace Mapsui.UI.Uwp
 {
@@ -42,6 +41,8 @@ namespace Mapsui.UI.Uwp
         private readonly SKXamlCanvas _canvas = CreateRenderTarget();
         private double _innerRotation;
 
+        public MouseWheelAnimation MouseWheelAnimation { get; } = new MouseWheelAnimation { Duration = 0 };
+
         public MapControl()
         {
             Background = new SolidColorBrush(Colors.White); // DON'T REMOVE! Touch events do not work without a background
@@ -49,7 +50,6 @@ namespace Mapsui.UI.Uwp
             Children.Add(_canvas);
             Children.Add(_selectRectangle);
 
-            _canvas.IgnorePixelScaling = true;
             _canvas.PaintSurface += Canvas_PaintSurface;
 
             Map = new Map();
@@ -61,7 +61,9 @@ namespace Mapsui.UI.Uwp
             PointerWheelChanged += MapControl_PointerWheelChanged;
 
             ManipulationMode = ManipulationModes.Scale | ManipulationModes.TranslateX | ManipulationModes.TranslateY | ManipulationModes.Rotate;
+            ManipulationStarted += OnManipulationStarted;
             ManipulationDelta += OnManipulationDelta;
+
             ManipulationInertiaStarting += OnManipulationInertiaStarting;
 
             Tapped += OnSingleTapped;
@@ -69,21 +71,34 @@ namespace Mapsui.UI.Uwp
 
             var orientationSensor = SimpleOrientationSensor.GetDefault();
             if (orientationSensor != null)
-                orientationSensor.OrientationChanged += (sender, args) => RunOnUIThread(Refresh);
+                orientationSensor.OrientationChanged += (sender, args) => RunOnUIThread(() => Refresh());
+        }
+
+
+        private void OnManipulationStarted(object sender, ManipulationStartedRoutedEventArgs e)
+        {
+            // We have a new interaction with the screen, so stop all navigator animations
+            Navigator.StopRunningAnimation();
+
+            _innerRotation = _viewport.Rotation;
         }
 
         private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
-            var tabPosition = e.GetPosition(this).ToMapsui();
-            OnInfo(InvokeInfo(Map.Layers.Where(l => l.IsMapInfoLayer), Map.Widgets, Viewport, 
-                tabPosition, tabPosition, Renderer.SymbolCache, WidgetTouched, 2));
+            // We have a new interaction with the screen, so stop all navigator animations
+            Navigator.StopRunningAnimation();
+
+            var tapPosition = e.GetPosition(this).ToMapsui();
+            OnInfo(InvokeInfo(tapPosition, tapPosition, 2));
         }
 
         private void OnSingleTapped(object sender, TappedRoutedEventArgs e)
         {
+            // We have a new interaction with the screen, so stop all navigator animations
+            Navigator.StopRunningAnimation();
+
             var tabPosition = e.GetPosition(this).ToMapsui();
-            OnInfo(InvokeInfo(Map.Layers.Where(l => l.IsMapInfoLayer), Map.Widgets, Viewport, 
-                tabPosition, tabPosition, Renderer.SymbolCache, WidgetTouched, 1));
+            OnInfo(InvokeInfo(tabPosition, tabPosition, 1));
         }
 
         private static Rectangle CreateSelectRectangle()
@@ -120,41 +135,26 @@ namespace Mapsui.UI.Uwp
 
         private void MapControl_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
-            if (ZoomLock) return;
-            if (!_viewport.IsSizeInitialized()) return;
+            if (Map.ZoomLock) return;
+            if (!Viewport.HasSize) return;
 
             var currentPoint = e.GetCurrentPoint(this);
-            var mousePosition = currentPoint.RawPosition.ToMapsui();
-            var newResolution = DetermineNewResolution(currentPoint.Properties.MouseWheelDelta, Viewport.Resolution);
-            _viewport.Transform(mousePosition.X, mousePosition.Y, mousePosition.X, mousePosition.Y, Viewport.Resolution / newResolution);
+
+            var mousePosition = new Geometries.Point(currentPoint.RawPosition.X, currentPoint.RawPosition.Y);
+
+            var resolution = MouseWheelAnimation.GetResolution(currentPoint.Properties.MouseWheelDelta, _viewport, _map);
+            // Limit target resolution before animation to avoid an animation that is stuck on the max resolution, which would cause a needless delay
+            resolution = Map.Limiter.LimitResolution(resolution, Viewport.Width, Viewport.Height, Map.Resolutions, Map.Envelope);
+            Navigator.ZoomTo(resolution, mousePosition, MouseWheelAnimation.Duration, MouseWheelAnimation.Easing);
 
             e.Handled = true;
-
-            RefreshGraphics();
-            RefreshData();
-        }
-
-        private double DetermineNewResolution(int mouseWheelDelta, double currentResolution)
-        {
-            if (mouseWheelDelta > 0)
-            {
-                var resolution = ZoomHelper.ZoomIn(_map.Resolutions, currentResolution);
-
-                return ViewportLimiter.LimitResolution(resolution, Viewport.Width, Viewport.Height,
-                    _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions, _map.Envelope);
-            }
-            if (mouseWheelDelta < 0)
-            {
-                var resolution = ZoomHelper.ZoomOut(_map.Resolutions, currentResolution);
-
-                return ViewportLimiter.LimitResolution(resolution, Viewport.Width, Viewport.Height,
-                    _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions, _map.Envelope);
-            }
-            return currentResolution;
         }
         
         public void RefreshGraphics()
         {
+            // The commented out code crashes the app when MouseWheelAnimation.Duration > 0. Could be a bug in SKXamlCanvas
+            //if (Dispatcher.HasThreadAccess) _canvas?.Invalidate();
+            //else RunOnUIThread(() => _canvas?.Invalidate());
             RunOnUIThread(() => _canvas?.Invalidate());
         }
 
@@ -167,8 +167,6 @@ namespace Mapsui.UI.Uwp
         {
             Clip = new RectangleGeometry { Rect = new Rect(0, 0, ActualWidth, ActualHeight) };
             SetViewportSize();
-            RefreshData();
-            Refresh();
         }
 
         private void RunOnUIThread(Action action)
@@ -180,9 +178,13 @@ namespace Mapsui.UI.Uwp
         {
             if (Renderer == null) return;
             if (_map == null) return;
-            if (!_viewport.IsSizeInitialized()) return;
+            if (!Viewport.HasSize) return;
+            if (PixelDensity <= 0) return;
 
-            Renderer.Render(e.Surface.Canvas, Viewport, _map.Layers, _map.Widgets, _map.BackColor);
+            e.Surface.Canvas.Scale(PixelDensity, PixelDensity);
+
+            Navigator.UpdateAnimations();
+            Renderer.Render(e.Surface.Canvas, new Viewport(Viewport), _map.Layers, _map.Widgets, _map.BackColor);
         }
 
         [Obsolete("Use MapControl.Navigate.NavigateTo instead", true)]
@@ -195,14 +197,22 @@ namespace Mapsui.UI.Uwp
         
         private void OnManipulationDelta(object sender, ManipulationDeltaRoutedEventArgs e)
         {
-            var (center, radius, angle) = (e.Position.ToMapsui(), e.Delta.Scale, e.Delta.Rotation);
-            var (prevCenter, prevRadius, prevAngle) = (e.Position.ToMapsui().Offset(-e.Delta.Translation.X, -e.Delta.Translation.Y), 1f, 0f);
+            // We have a new interaction with the screen, so stop all navigator animations
+            Navigator.StopRunningAnimation();
+
+            var center = e.Position.ToMapsui();
+            var radius = e.Delta.Scale;
+            var rotation = e.Delta.Rotation;
+
+            var previousCenter=  e.Position.ToMapsui().Offset(-e.Delta.Translation.X, -e.Delta.Translation.Y);
+            var previousRadius = 1f;
+            var previousRotation = 0f;
 
             double rotationDelta = 0;
 
-            if (!RotationLock)
+            if (!Map.RotationLock)
             {
-                _innerRotation += angle - prevAngle;
+                _innerRotation += rotation - previousRotation;
                 _innerRotation %= 360;
 
                 if (_innerRotation > 180)
@@ -221,16 +231,10 @@ namespace Mapsui.UI.Uwp
                 }
             }
 
-            _viewport.Transform(center.X, center.Y, prevCenter.X, prevCenter.Y, radius / prevRadius, rotationDelta);
-
-            ViewportLimiter.Limit(_viewport, _map.Limits.ZoomMode, _map.Limits.ZoomLimits, _map.Resolutions,
-                _map.Limits.PanMode, _map.Limits.PanLimits, _map.Envelope);
+            _viewport.Transform(center, previousCenter, radius / previousRadius, rotationDelta);
             RefreshGraphics();
-            RefreshData(false);
             e.Handled = true;
         }
-
-        public float PixelDensity => (float)DisplayInformation.GetForCurrentView().RawPixelsPerViewPixel;
 
         public void OpenBrowser(string url)
         {
@@ -239,5 +243,11 @@ namespace Mapsui.UI.Uwp
 
         private float ViewportWidth => (float)ActualWidth;
         private float ViewportHeight => (float)ActualHeight;
+
+        private float GetPixelDensity()
+        {
+            return (float)DisplayInformation.GetForCurrentView().RawPixelsPerViewPixel;
+        }
+
     }
 }

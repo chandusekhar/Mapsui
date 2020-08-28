@@ -28,9 +28,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using Mapsui.Geometries;
+using Mapsui.Providers;
 using Mapsui.Rendering;
 
-namespace Mapsui.Providers.Wms
+namespace Mapsui.Desktop.Wms
 {
     /// <summary>
     /// Web Map Service layer
@@ -78,7 +79,7 @@ namespace Mapsui.Providers.Wms
             else //None of the default formats supported - Look for the first supported output format
             {
                 throw new ArgumentException(
-                    "None of the formates provided by the WMS service are supported");
+                    "None of the formats provided by the WMS service are supported");
             }
             LayerList = new Collection<string>();
             StylesList = new Collection<string>();
@@ -316,7 +317,7 @@ namespace Mapsui.Providers.Wms
             }
             catch (OverflowException)
             {
-                Trace.Write("Could not conver double to int (ExportMap size)");
+                Trace.Write("Could not convert double to int (ExportMap size)");
                 return false;
             }
 
