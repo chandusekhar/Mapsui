@@ -1,55 +1,57 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
-using Mapsui.Geometries;
+using System.Threading.Tasks;
+using Mapsui.Extensions;
 using Mapsui.Layers;
 using Mapsui.Providers;
 using NUnit.Framework;
 
-namespace Mapsui.Tests.Layers
+namespace Mapsui.Tests.Layers;
+
+[TestFixture]
+public class ImageLayerTests
 {
-    [TestFixture]
-    public class ImageLayerTests
+    private const string ExceptionMessage = "This exception should return on OnDataChange";
+
+    private class FakeProvider : IProvider
     {
-        private const string ExceptionMessage = "This exception should return on OnDataChange";
-
-        class FakeProvider : IProvider
+        public string? CRS { get; set; }
+        public Task<IEnumerable<IFeature>> GetFeaturesAsync(FetchInfo fetchInfo)
         {
-            public string CRS { get; set; }
-            public IEnumerable<IFeature> GetFeaturesInView(BoundingBox box, double resolution)
-            {
-                throw new Exception(ExceptionMessage);
-            }
-
-            public BoundingBox GetExtents()
-            {
-                return new BoundingBox(-1, -1, 0, 0);
-            }
+            throw new Exception(ExceptionMessage);
         }
 
-        [Test]
-        public void TestExceptionOnProvider()
+        public MRect GetExtent()
         {
-            // arrange
-            var provider = new FakeProvider();
-            var imageLayer = new ImageLayer("imageLayer") { DataSource = provider};
-            var map = new Map();
-            map.Layers.Add(imageLayer);
-            var waitHandle = new AutoResetEvent(false);
-            Exception exception = null;
-
-            imageLayer.DataChanged += (sender, args) =>
-            {
-                exception = args.Error;
-                waitHandle.Go();
-            };
-
-            // act
-            map.RefreshData(new BoundingBox(-1, -1, 0, 0), 1, ChangeType.Discrete);
-
-            // assert
-            waitHandle.WaitOne();
-            Assert.AreEqual(ExceptionMessage, exception.Message);
+            return new MRect(-1, -1, 0, 0);
         }
+    }
+
+    [Test]
+    public void TestExceptionOnProvider()
+    {
+        // arrange
+        var provider = new FakeProvider();
+        using var imageLayer = new ImageLayer("imageLayer") { DataSource = provider };
+        using var map = new Map();
+        map.Layers.Add(imageLayer);
+        using var waitHandle = new AutoResetEvent(false);
+        Exception? exception = null;
+
+        imageLayer.DataChanged += (_, args) =>
+        {
+            exception = args.Error;
+            waitHandle.Go();
+        };
+
+        var fetchInfo = new FetchInfo(new MSection(new MRect(-1, -1, 0, 0), 1), null, ChangeType.Discrete);
+
+        // act
+        map.RefreshData(fetchInfo);
+
+        // assert
+        waitHandle.WaitOne();
+        Assert.AreEqual(ExceptionMessage, exception?.Message);
     }
 }

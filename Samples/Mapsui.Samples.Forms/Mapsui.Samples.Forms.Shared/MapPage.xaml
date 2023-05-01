@@ -6,11 +6,14 @@
     <ContentPage.Content>
         <StackLayout>
           <mapsui:MapView x:Name="mapView"
-            IsVisible="False"
-		    VerticalOptions="FillAndExpand"
+            IsVisible="True"
+            VerticalOptions="FillAndExpand"
             HorizontalOptions="Fill"
-		    BackgroundColor="Gray" 
-		    Margin="10" />
+            IsZoomButtonVisible="True"
+            IsMyLocationButtonVisible="True"
+            IsNorthingButtonVisible="True"
+            BackgroundColor="Gray" 
+            Margin="10" />
           <Label x:Name="info" 
             HorizontalOptions="CenterAndExpand"
             Text="unknown" />

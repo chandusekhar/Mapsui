@@ -6,23 +6,20 @@ Start a new WPF application in Visual Studio.
 
 ### Step 2
 In the package manager console type:
+```console
+PM> Install-Package Mapsui.Wpf -pre
 ```
-PM> Install-Package Mapsui
-```
-
-### Step 3
-In WpfApplication1.MainWindow.xaml add this in the Grid element:
-```
-<xaml:MapControl Name="MyMapControl"></xaml:MapControl>
-```
-And add the namespace: ```xmlns:xaml="clr-namespace:Mapsui.UI.Wpf;assembly=Mapsui.UI.Wpf"```
 
 ### Step 4
-In WpfApplication1.MainWindow.xaml.cs add in the constructor:
-```
-MyMapControl.Map.Layers.Add(new TileLayer(KnownTileSources.Create()));
-```
-And add the namespaces: ```using BruTile.Predefined; using Mapsui.Layers; ```
+In MainWindow.xaml.cs add in the constructor **after** InitializeComponent():
 
-### Step 5
-Run!
+```csharp
+var mapControl = new Mapsui.UI.Wpf.MapControl();
+
+mapControl.Map?.Layers.Add(Mapsui.Tiling.OpenStreetMap.CreateTileLayer());
+
+Content = mapControl;
+```
+
+### Step 4
+Run it and you should see a map of the world.

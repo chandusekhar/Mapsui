@@ -1,62 +1,77 @@
 ﻿using System;
 using Mapsui.Samples.Common.Maps;
+using Mapsui.Samples.Common.Maps.Demo;
 using Mapsui.UI;
+#if __MAUI__
+using Mapsui.UI.Maui;
+using Microsoft.Maui.Graphics;
+#else
 using Mapsui.UI.Forms;
 using Xamarin.Forms;
+#endif
 
-namespace Mapsui.Samples.Forms
+#if __MAUI__
+namespace Mapsui.Samples.Maui;
+#else
+namespace Mapsui.Samples.Forms;
+#endif
+
+public class PolygonSample : IFormsSample
 {
-    public class PolygonSample : IFormsSample
+    static readonly Random random = new Random(1);
+
+    public string Name => "Add Polygon Sample";
+
+    public string Category => "Forms";
+
+    public bool OnClick(object? sender, EventArgs args)
     {
-        static readonly Random random = new Random();
+        var mapView = sender as MapView;
+        var e = args as MapClickedEventArgs;
 
-        public string Name => "Add Polygon Sample";
+        if (e == null)
+            return false;
 
-        public string Category => "Forms";
+        var center = new Position(e.Point);
+        var diffX = random.Next(0, 1000) / 100.0;
+        var diffY = random.Next(0, 1000) / 100.0;
 
-        public bool OnClick(object sender, EventArgs args)
+        var polygon = new Polygon
         {
-            var mapView = sender as MapView;
-            var e = args as MapClickedEventArgs;
+            StrokeColor = new Color(random.Next(0, 255) / 255.0f, random.Next(0, 255) / 255.0f, random.Next(0, 255) / 255.0f),
+            FillColor = new Color(random.Next(0, 255) / 255.0f, random.Next(0, 255) / 255.0f, random.Next(0, 255) / 255.0f)
+        };
 
-            var center = new Position(e.Point);
-            var diffX = random.Next(0, 1000) / 100.0;
-            var diffY = random.Next(0, 1000) / 100.0;
+        polygon.Positions.Add(new Position(center.Latitude - diffY, center.Longitude - diffX));
+        polygon.Positions.Add(new Position(center.Latitude + diffY, center.Longitude - diffX));
+        polygon.Positions.Add(new Position(center.Latitude + diffY, center.Longitude + diffX));
+        polygon.Positions.Add(new Position(center.Latitude - diffY, center.Longitude + diffX));
 
-            var polygon = new Polygon
+        // Be carefull: holes should have other direction of Positions.
+        // If Positions is clockwise, than Holes should all be counter clockwise and the other way round.
+        polygon.Holes.Add(new Position[] {
+            new Position(center.Latitude - diffY * 0.3, center.Longitude - diffX * 0.3),
+            new Position(center.Latitude + diffY * 0.3, center.Longitude + diffX * 0.3),
+            new Position(center.Latitude + diffY * 0.3, center.Longitude - diffX * 0.3),
+        });
+
+        polygon.IsClickable = true;
+        polygon.Clicked += (s, a) =>
+        {
+            if (s is Polygon p)
             {
-                StrokeColor = new Color(random.Next(0, 255) / 255.0, random.Next(0, 255) / 255.0, random.Next(0, 255) / 255.0),
-                FillColor = new Color(random.Next(0, 255) / 255.0, random.Next(0, 255) / 255.0, random.Next(0, 255) / 255.0)
-            };
-
-            polygon.Positions.Add(new Position(center.Latitude - diffY, center.Longitude - diffX));
-            polygon.Positions.Add(new Position(center.Latitude + diffY, center.Longitude - diffX));
-            polygon.Positions.Add(new Position(center.Latitude + diffY, center.Longitude + diffX));
-            polygon.Positions.Add(new Position(center.Latitude - diffY, center.Longitude + diffX));
-
-            // Be carefull: holes should have other direction of Positions.
-            // If Positions is clockwise, than Holes should all be counter clockwise and the other way round.
-            polygon.Holes.Add(new Position[] {
-                new Position(center.Latitude - diffY * 0.3, center.Longitude - diffX * 0.3),
-                new Position(center.Latitude + diffY * 0.3, center.Longitude + diffX * 0.3),
-                new Position(center.Latitude + diffY * 0.3, center.Longitude - diffX * 0.3),
-            });
-
-            polygon.IsClickable = true;
-            polygon.Clicked += (s, a) =>
-            {
-                ((Polygon)s).FillColor = new Color(random.Next(0, 255) / 255.0, random.Next(0, 255) / 255.0, random.Next(0, 255) / 255.0);
+                p.FillColor = new Color(random.Next(0, 255) / 255.0f, random.Next(0, 255) / 255.0f, random.Next(0, 255) / 255.0f);
                 a.Handled = true;
-            };
+            }
+        };
 
-            mapView.Drawables.Add(polygon);
+        mapView?.Drawables.Add(polygon);
 
-            return true;
-        }
+        return true;
+    }
 
-        public void Setup(IMapControl mapControl)
-        {
-            mapControl.Map = OsmSample.CreateMap();
-        }
+    public void Setup(IMapControl mapControl)
+    {
+        mapControl.Map = OsmSample.CreateMap();
     }
 }

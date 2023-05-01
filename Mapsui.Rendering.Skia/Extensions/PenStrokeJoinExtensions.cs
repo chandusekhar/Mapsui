@@ -1,23 +1,18 @@
 ﻿using Mapsui.Styles;
 using SkiaSharp;
 
-namespace Mapsui.Rendering.Skia
+namespace Mapsui.Rendering.Skia.Extensions;
+
+public static class PenStrokeJoinExtensions
 {
-    public static class PenStrokeJoinExtensions
+    public static SKStrokeJoin ToSkia(this StrokeJoin penStrokeJoin)
     {
-        public static SKStrokeJoin ToSkia(this StrokeJoin penStrokeJoin)
+        return penStrokeJoin switch
         {
-            switch (penStrokeJoin)
-            {
-                case StrokeJoin.Miter:
-                    return SKStrokeJoin.Miter;
-                case StrokeJoin.Round:
-                    return SKStrokeJoin.Round;
-                case StrokeJoin.Bevel:
-                    return SKStrokeJoin.Bevel;
-                default:
-                    return SKStrokeJoin.Miter;
-            }
-        }
+            StrokeJoin.Miter => SKStrokeJoin.Miter,
+            StrokeJoin.Round => SKStrokeJoin.Round,
+            StrokeJoin.Bevel => SKStrokeJoin.Bevel,
+            _ => SKStrokeJoin.Miter,
+        };
     }
 }

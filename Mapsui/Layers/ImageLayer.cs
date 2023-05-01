@@ -1,223 +1,195 @@
-// Copyright 2005, 2006 - Morten Nielsen (www.iter.dk)
-//
-// This file is part of SharpMap.
-// Mapsui is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
-// 
-// SharpMap is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
+// Copyright (c) The Mapsui authors.
+// The Mapsui authors licensed this file under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-// You should have received a copy of the GNU Lesser General Public License
-// along with SharpMap; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
+// This file was originally created by Morten Nielsen (www.iter.dk) as part of SharpMap
 
-using Mapsui.Fetcher;
-using Mapsui.Geometries;
-using Mapsui.Providers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Mapsui.Extensions;
+using Mapsui.Fetcher;
 using Mapsui.Logging;
-using Mapsui.Utilities;
+using Mapsui.Providers;
 
-namespace Mapsui.Layers
+namespace Mapsui.Layers;
+
+public class ImageLayer : BaseLayer, IAsyncDataFetcher, ILayerDataSource<IProvider>, IDisposable, ILayer
 {
-    public class ImageLayer : BaseLayer, IAsyncDataFetcher
+    protected override void Dispose(bool disposing)
     {
-        private class FeatureSets
+        if (disposing)
         {
-            public long TimeRequested { get; set; }
-            public IEnumerable<IFeature> Features { get; set; }
+            _startFetchTimer.Dispose();
         }
 
-        private bool _isFetching;
-        private bool _needsUpdate = true;
-        private double _newResolution;
-        private BoundingBox _newExtent;
-        private List<FeatureSets> _sets = new List<FeatureSets>();
-        private readonly Timer _startFetchTimer;
-        private IProvider _dataSource;
-        private readonly int _numberOfFeaturesReturned;
+        base.Dispose(disposing);
+    }
 
-        /// <summary>
-        /// Delay before fetching a new wms image from the server
-        /// after the view has changed. Specified in milliseconds.
-        /// </summary>
-        public int FetchDelay { get; set; } = 1000;
+    private class FeatureSets
+    {
+        public long TimeRequested { get; set; }
+        public IEnumerable<RasterFeature> Features { get; set; } = new List<RasterFeature>();
+    }
 
-        public IProvider DataSource
+    private bool _isFetching;
+    private bool _needsUpdate = true;
+    private FetchInfo? _fetchInfo;
+    private List<FeatureSets> _sets = new();
+    private readonly Timer _startFetchTimer;
+    private IProvider? _dataSource;
+    private readonly int _numberOfFeaturesReturned;
+
+    /// <summary>
+    /// Delay before fetching a new wms image from the server
+    /// after the view has changed. Specified in milliseconds.
+    /// </summary>
+    public int FetchDelay { get; set; } = 1000;
+
+    public IProvider? DataSource
+    {
+        get => _dataSource;
+        set
         {
-            get => _dataSource;
-            set
+            if (_dataSource == value) return;
+            _dataSource = value;
+            OnPropertyChanged(nameof(DataSource));
+            // This is a synchronous version so it doesn't need to be run in the Background
+            // the Extent is already created on the creation of the Provider.
+            Extent = DataSource?.GetExtent();
+        }
+    }
+
+    public ImageLayer(string layerName)
+    {
+        Name = layerName;
+        _startFetchTimer = new Timer(StartFetchTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+        _numberOfFeaturesReturned = 1;
+    }
+
+    private void StartFetchTimerElapsed(object? state)
+    {
+        var fetchInfo = _fetchInfo;
+
+        if (fetchInfo?.Section.Extent == null) return;
+        if (double.IsNaN(fetchInfo.Section.Resolution)) return;
+        StartNewFetch(fetchInfo);
+    }
+
+    public override IEnumerable<IFeature> GetFeatures(MRect box, double resolution)
+    {
+        var result = new List<IFeature>();
+        foreach (var featureSet in _sets.OrderBy(c => c.TimeRequested))
+        {
+            result.AddRange(GetFeaturesInView(box, featureSet.Features));
+        }
+        return result;
+    }
+
+    private static IEnumerable<IFeature> GetFeaturesInView(MRect box, IEnumerable<RasterFeature> features)
+    {
+        foreach (var feature in features)
+        {
+            if (feature.Raster == null)
+                continue;
+
+            if (box.Intersects(feature.Extent))
             {
-                _dataSource = value;
-                OnPropertyChanged(nameof(DataSource));
+                yield return feature;
             }
         }
+    }
 
-        public ImageLayer(string layername)
+    public void AbortFetch()
+    {
+        // not implemented for ImageLayer
+    }
+
+    public void RefreshData(FetchInfo fetchInfo)
+    {
+        if (!Enabled) return;
+        // Fetching an image, that often covers the whole map, is expensive. Only do it on Discrete changes.
+        if (fetchInfo.ChangeType == ChangeType.Continuous) return;
+
+        _fetchInfo = fetchInfo;
+        Logger.Log(LogLevel.Debug, @$"Refresh Data: Resolution: {fetchInfo.Resolution} Change Type: {fetchInfo.ChangeType} Extent: {fetchInfo.Extent} ");
+
+        Busy = true;
+        if (_isFetching)
         {
-            Name = layername;
-            _startFetchTimer = new Timer(StartFetchTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
-            _numberOfFeaturesReturned = 1;
-            PropertyChanged += OnPropertyChanged;
+            _needsUpdate = true;
+            return;
         }
 
-        protected void OnPropertyChanged(object sender, PropertyChangedEventArgs e)
+        _startFetchTimer.Change(FetchDelay, Timeout.Infinite);
+    }
+
+    private void StartNewFetch(FetchInfo fetchInfo)
+    {
+        if (_dataSource == null) return;
+
+        _isFetching = true;
+        Busy = true;
+        _needsUpdate = false;
+
+        var fetcher = new FeatureFetcher(new FetchInfo(fetchInfo), _dataSource, DataArrived, DateTime.Now.Ticks);
+
+        Catch.TaskRun(async () =>
         {
-            if (e.PropertyName == nameof(CRS) ||
-                e.PropertyName == nameof(DataSource) ||
-                e.PropertyName == nameof(Transformation))
+            try
             {
-                Task.Run(() => // Run in background because it could take time.
-                {
-                    var sourceExtent = DataSource.GetExtents(); // This method could involve database access or a web request
-                    Envelope = ProjectionHelper.GetTransformedBoundingBox(
-                        Transformation, sourceExtent, DataSource.CRS, CRS);
-                });
+                Logger.Log(LogLevel.Debug, $"Start image fetch at {DateTime.Now.TimeOfDay}");
+                await fetcher.FetchOnThreadAsync();
+                Logger.Log(LogLevel.Debug, $"Finished image fetch at {DateTime.Now.TimeOfDay}");
             }
-        }
-
-        void StartFetchTimerElapsed(object state)
-        {
-            if (_newExtent == null) return;
-            if (double.IsNaN(_newResolution)) return;
-            StartNewFetch(_newExtent, _newResolution);
-        }
-
-        public override IEnumerable<IFeature> GetFeaturesInView(BoundingBox box, double resolution)
-        {
-            var result = new List<IFeature>();
-            foreach (var featureSet in _sets.OrderBy(c => c.TimeRequested))
+            catch (Exception ex)
             {
-                result.AddRange(GetFeaturesInView(box, featureSet.Features));
+                Logger.Log(LogLevel.Error, ex.Message, ex);
+                OnDataChanged(new DataChangedEventArgs(ex, false, null));
             }
-            return result;
+        });
+    }
+
+    private void DataArrived(IEnumerable<IFeature>? arrivingFeatures, object? state)
+    {
+        //the data in the cache is stored in the map projection so it projected only once.
+        var features = arrivingFeatures?.Cast<RasterFeature>().ToList() ?? throw new ArgumentException("argument features may not be null");
+
+        // We can get 0 features if some error was occurred up call stack
+        // We should not add new FeatureSets if we have not any feature
+
+        _isFetching = false;
+
+        if (features.Any())
+        {
+            features = features.ToList();
+
+            _sets.Add(new FeatureSets { TimeRequested = state == null ? 0 : (long)state, Features = features });
+
+            //Keep only two most recent sets. The older ones will be removed
+            _sets = _sets.OrderByDescending(c => c.TimeRequested).Take(_numberOfFeaturesReturned).ToList();
+
+            OnDataChanged(new DataChangedEventArgs(null, false, null, Name));
         }
 
-        private static IEnumerable<IFeature> GetFeaturesInView(BoundingBox box, IEnumerable<IFeature> features)
+        if (_needsUpdate)
         {
-            foreach (var feature in features)
-            {
-                if (feature.Geometry == null)
-                    continue;
-
-                if (box.Intersects(feature.Geometry.BoundingBox))
-                {
-                    yield return feature;
-                }
-            }
+            if (_fetchInfo != null) StartNewFetch(_fetchInfo);
         }
-
-        public void AbortFetch()
+        else
         {
-            // not implemented for ImageLayer
+            Busy = false;
         }
+    }
 
-        public override void RefreshData(BoundingBox extent, double resolution, ChangeType changeType)
+    public void ClearCache()
+    {
+        foreach (var cache in _sets)
         {
-            if (!Enabled) return;
-            if (DataSource == null) return;
-            // Fetching an image, that often covers the whole map, is expensive. Only do it on Discrete changes.
-            if (changeType == ChangeType.Continuous) return;
-
-            _newExtent = extent;
-            _newResolution = resolution;
-
-            if (_isFetching)
-            {
-                _needsUpdate = true;    
-                return;
-            }
-
-            _startFetchTimer.Change(FetchDelay, Timeout.Infinite);
-        }
-
-        private void StartNewFetch(BoundingBox extent, double resolution)
-        {
-            _isFetching = true;
-            _needsUpdate = false;
-
-            var newExtent = new BoundingBox(extent);
-
-            if (Transformation != null && !string.IsNullOrWhiteSpace(CRS)) DataSource.CRS = CRS;
-
-            if (ProjectionHelper.NeedsTransform(Transformation, CRS, DataSource.CRS))
-                if (Transformation != null && Transformation.IsProjectionSupported(CRS, DataSource.CRS) == true)
-                    newExtent = Transformation.Transform(CRS, DataSource.CRS, extent);
-
-            var fetcher = new FeatureFetcher(newExtent, resolution, DataSource, DataArrived, DateTime.Now.Ticks);
-
-            Task.Run(() =>
-            {
-                try 
-                { 
-                    Logger.Log(LogLevel.Debug, $"Start image fetch at {DateTime.Now.TimeOfDay}");
-                    fetcher.FetchOnThread();
-                    Logger.Log(LogLevel.Debug, $"Finished image fetch at {DateTime.Now.TimeOfDay}");
-                }
-                catch (Exception ex)
-                {
-                    OnDataChanged(new DataChangedEventArgs(ex, false, null));
-                }
-            });
-        }
-
-        private void DataArrived(IEnumerable<IFeature> features, object state)
-        {
-            //the data in the cache is stored in the map projection so it projected only once.
-            features = features?.ToList() ?? throw new ArgumentException("argument features may not be null");
-
-            // We can get 0 features if some error was occured up call stack
-            // We should not add new FeatureSets if we have not any feature
-
-            _isFetching = false;
-
-            if (features.Any())
-            {
-                features = features.ToList();
-                if (ProjectionHelper.NeedsTransform(Transformation, CRS, DataSource.CRS))
-                {
-                    foreach (var feature in features.Where(feature => !(feature.Geometry is Raster)))
-                    {
-                        feature.Geometry = Transformation.Transform(DataSource.CRS, CRS, feature.Geometry);
-                    }
-                }
-
-                _sets.Add(new FeatureSets { TimeRequested = (long)state, Features = features });
-
-                //Keep only two most recent sets. The older ones will be removed
-                _sets = _sets.OrderByDescending(c => c.TimeRequested).Take(_numberOfFeaturesReturned).ToList();
-
-                OnDataChanged(new DataChangedEventArgs(null, false, null, Name));
-            }
-
-            if (_needsUpdate)
-            {
-                StartNewFetch(_newExtent, _newResolution);
-            }
-        }
-
-        public void ClearCache()
-        {
-            foreach (var cache in _sets)
-            {
-                cache.Features = new Features();
-            }
-        }
-
-        public override bool? IsCrsSupported(string crs)
-        {
-            var projectingProvider = (DataSource as IProjectingProvider);
-            if (projectingProvider == null) return (crs == CRS);
-            return projectingProvider.IsCrsSupported(crs);
+            cache.Features = new List<RasterFeature>();
         }
     }
 }

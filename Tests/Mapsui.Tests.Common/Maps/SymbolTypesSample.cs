@@ -1,85 +1,82 @@
 ﻿using System.Collections.Generic;
-using Mapsui.Geometries;
+using System.Threading.Tasks;
 using Mapsui.Layers;
-using Mapsui.Providers;
 using Mapsui.Samples.Common;
 using Mapsui.Styles;
-using Mapsui.UI;
 
-namespace Mapsui.Tests.Common.Maps
+namespace Mapsui.Tests.Common.Maps;
+
+#pragma warning disable IDISP001 // Dispose created
+
+public class SymbolTypesSample : ISample
 {
-    public class SymbolTypesSample : ISample
+    public string Name => "Symbol Types";
+    public string Category => "Tests";
+
+    public Task<Map> CreateMapAsync() => Task.FromResult(CreateMap());
+
+    public static Map CreateMap()
     {
-        public string Name => "Symbol Types";
-        public string Category => "Tests";
+        var layer = CreateLayer();
 
-        public void Setup(IMapControl mapControl)
+        var map = new Map
         {
-            mapControl.Map = CreateMap();
-        }
+            BackColor = Color.FromString("WhiteSmoke"),
+            Home = n => n.ZoomToBox(layer.Extent!.Grow(layer.Extent.Width * 2))
+        };
 
-        public static Map CreateMap()
+        map.Layers.Add(layer);
+
+        return map;
+    }
+
+    private static MemoryLayer CreateLayer()
+    {
+        return new MemoryLayer
         {
-            var map = new Map
-            {
-                BackColor = Color.Transparent,
-                Home = n => n.NavigateTo(new Point(0, 0), 0.5)
-            };
+            Features = CreateFeatures(),
+            Name = "Symbol Types",
+            Style = null
+        };
+    }
 
-            map.Layers.Add(new MemoryLayer
-            {
-                DataSource = new MemoryProvider(CreateFeatures()),
-                Name = "Symbol Types",
-                Style = null
-            });
-
-            return map;
-        }
-
-        private static Features CreateFeatures()
+    private static IEnumerable<IFeature> CreateFeatures()
+    {
+        return new List<IFeature>()
         {
-            return new Features
-            {
-                new Feature
+            new PointFeature(new MPoint(0, 00)) {
+                Styles = new List<IStyle>
                 {
-                    Geometry = new Point(-20, 0),
-                    Styles = new List<IStyle>
+                    new SymbolStyle
                     {
-                        new SymbolStyle
-                        {
-                            Fill = new Brush {Color = Color.Gray},
-                            Outline = new Pen(Color.Black),
-                            SymbolType = SymbolType.Ellipse
-                        }
-                    }
-                },
-                new Feature
-                {
-                    Geometry = new Point(20, 0),
-                    Styles = new List<IStyle>
-                    {
-                        new SymbolStyle
-                        {
-                            Fill = new Brush {Color = Color.Gray},
-                            Outline = new Pen(Color.Black),
-                            SymbolType = SymbolType.Rectangle
-                        }
-                    }
-                },
-                new Feature
-                {
-                    Geometry = new Point(-20, 20),
-                    Styles = new List<IStyle>
-                    {
-                        new SymbolStyle
-                        {
-                            Fill = new Brush {Color = Color.Gray},
-                            Outline = new Pen(Color.Black),
-                            SymbolType = SymbolType.Triangle
-                        }
+                        Fill = new Brush {Color = Color.Gray},
+                        Outline = new Pen(Color.Black),
+                        SymbolType = SymbolType.Ellipse
                     }
                 }
-            };
-        }
+            },
+            new PointFeature(new MPoint(50, 0)) {
+                Styles = new List<IStyle>
+                {
+                    new SymbolStyle
+                    {
+                        Fill = new Brush {Color = Color.Gray},
+                        Outline = new Pen(Color.Black),
+                        SymbolType = SymbolType.Rectangle
+                    }
+                }
+            },
+            new PointFeature(new MPoint(0, 50)) {
+                Styles = new List<IStyle>
+                {
+                    new SymbolStyle
+                    {
+                        Fill = new Brush {Color = Color.Gray},
+                        Outline = new Pen(Color.Black),
+                        SymbolType = SymbolType.Triangle
+                    }
+                }
+            }
+        };
     }
 }

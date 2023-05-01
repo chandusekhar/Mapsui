@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net6.0-windows10.0.19041.0;net7.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>Mapsui.UI.WinUI</RootNamespace>
+    <RuntimeIdentifiers>win10-x86;win10-x64;win10-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <DefineConstants>__WINUI__</DefineConstants>
+    <PackageId>Mapsui.WinUI</PackageId>
+    <Description>WinUI map components based on the Mapsui library</Description>
+    <PackageTags>$(PackageTags) winui</PackageTags>
+		<IsPackable>true</IsPackable>
+		<EnablePreviewMsixTooling>true</EnablePreviewMsixTooling>
+		<GenerateLibraryLayout>true</GenerateLibraryLayout>
+  </PropertyGroup>	
+
+	<!-- Workaround for https://github.com/microsoft/WindowsAppSDK/issues/1217 -->
+	<Target Name="FixBinPlaceBootstrapDll" BeforeTargets="BinPlaceBootstrapDll">
+		<PropertyGroup>
+			<_WindowsAppSDKFoundationPlatform>x86</_WindowsAppSDKFoundationPlatform>
+		</PropertyGroup>
+	</Target>
+
+  <ItemGroup>
+	  <PackageReference Include="Microsoft.WindowsAppSDK" GeneratePathProperty="true" />
+	  <PackageReference Include="Microsoft.Graphics.Win2D" />
+    <PackageReference Include="SkiaSharp.Views.WinUI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mapsui.Rendering.Skia\Mapsui.Rendering.Skia.csproj" />
+    <ProjectReference Include="..\Mapsui.Tiling\Mapsui.Tiling.csproj" />
+    <ProjectReference Include="..\Mapsui\Mapsui.csproj" />
+  </ItemGroup>
+
+	<!-- Required - WinUI can't deploy in a multi-targeting environment -->
+	<Target Name="FixReferenceCopyLocalPaths" BeforeTargets="ResolvePackageAssets">
+	  <ItemGroup>
+		<ReferenceCopyLocalPaths Remove="$(PkgMicrosoft_WindowsAppSDK)\build\..\runtimes\lib\native\AnyCPU\Microsoft.WindowsAppRuntime.Bootstrap.dll" />
+		<ReferenceCopyLocalPaths Remove="$(PkgMicrosoft_WindowsAppSDK)\build\..\runtimes\lib\native\\Microsoft.WindowsAppRuntime.Bootstrap.dll" />
+	  </ItemGroup>
+	</Target>
+
+  <Import Project="..\Mapsui.UI.Shared\Mapsui.UI.Shared.projitems" Label="Shared" />
+
+</Project>

@@ -1,79 +1,81 @@
-using Mapsui.Layers;
-using Mapsui.Providers;
-using Mapsui.Styles;
-using Mapsui.Styles.Thematics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Mapsui.Extensions;
+using Mapsui.Layers;
+using Mapsui.Logging;
+using Mapsui.Styles;
+using Mapsui.Styles.Thematics;
 
-namespace Mapsui.Rendering
+namespace Mapsui.Rendering;
+
+public static class VisibleFeatureIterator
 {
-    public static class VisibleFeatureIterator
+    public static void IterateLayers(Viewport viewport, IEnumerable<ILayer> layers, long iteration,
+        Action<Viewport, ILayer, IStyle, IFeature, float, long> callback)
     {
-        public static void IterateLayers(IReadOnlyViewport viewport, IEnumerable<ILayer> layers,
-            Action<IReadOnlyViewport, ILayer, IStyle, IFeature, float> callback)
+        foreach (var layer in layers)
         {
-            foreach (var layer in layers)
-            {
-                if (layer.Enabled == false) continue;
-                if (layer.MinVisible > viewport.Resolution) continue;
-                if (layer.MaxVisible < viewport.Resolution) continue;
+            if (layer.Enabled == false) continue;
+            if (layer.MinVisible > viewport.Resolution) continue;
+            if (layer.MaxVisible < viewport.Resolution) continue;
 
-                IterateLayer(viewport, layer, callback);
-            }
+            IterateLayer(viewport, layer, iteration, callback);
         }
+    }
 
-        private static void IterateLayer(IReadOnlyViewport viewport, ILayer layer,
-            Action<IReadOnlyViewport, ILayer, IStyle, IFeature, float> callback)
+    private static void IterateLayer(Viewport viewport, ILayer layer, long iteration,
+        Action<Viewport, ILayer, IStyle, IFeature, float, long> callback)
+    {
+        var extent = viewport.ToExtent();
+        if (extent is null) return;
+
+        var features = layer.GetFeatures(extent, viewport.Resolution).ToList();
+
+        // Part 1. Styles on the layer
+        var layerStyles = layer.Style.GetStylesToApply(viewport.Resolution);
+
+        foreach (var layerStyle in layerStyles)
         {
-            var features = layer.GetFeaturesInView(viewport.Extent, viewport.Resolution).ToList();
-
-            var layerStyles = ToArray(layer);
-            foreach (var layerStyle in layerStyles)
-            {
-                var style = layerStyle; // This is the default that could be overridden by an IThemeStyle
-
-                foreach (var feature in features)
-                {
-                    if (layerStyle is IThemeStyle) style = (layerStyle as IThemeStyle).GetStyle(feature);
-                    if (ShouldNotBeApplied(style, viewport)) continue;
-
-                    if (style is StyleCollection styles) // The ThemeStyle can again return a StyleCollection
-                    {
-                        foreach (var s in styles)
-                        {
-                            if (ShouldNotBeApplied(s, viewport)) continue;
-                            callback(viewport, layer, s, feature, (float)layer.Opacity);
-                        }
-                    }
-                    else
-                    {
-                        callback(viewport, layer, style, feature, (float)layer.Opacity);
-                    }
-                }
-            }
-
             foreach (var feature in features)
             {
-                var featureStyles = feature.Styles ?? Enumerable.Empty<IStyle>(); // null check
-                foreach (var featureStyle in featureStyles)
+                if (layerStyle is IThemeStyle themeStyle)
                 {
-                    if (ShouldNotBeApplied(featureStyle, viewport)) continue;
-
-                    callback(viewport, layer, featureStyle, feature, (float)layer.Opacity);
-
+                    var stylesFromThemeStyle = themeStyle.GetStyle(feature).GetStylesToApply(viewport.Resolution);
+                    foreach (var styleFromThemeStyle in stylesFromThemeStyle)
+                    {
+                        callback(viewport, layer, styleFromThemeStyle, feature, (float)layer.Opacity, iteration);
+                    }
+                }
+                else
+                {
+                    callback(viewport, layer, layerStyle, feature, (float)layer.Opacity, iteration);
                 }
             }
         }
 
-        private static bool ShouldNotBeApplied(IStyle style, IReadOnlyViewport viewport)
+        // Part 2. Styles on the feature
+        foreach (var feature in features)
         {
-            return style == null || !style.Enabled || style.MinVisible > viewport.Resolution || style.MaxVisible < viewport.Resolution;
-        }
+            var featureStyles = feature.Styles ?? Enumerable.Empty<IStyle>();
+            foreach (var featureStyle in featureStyles)
+            {
+                if (featureStyle is IThemeStyle themeStyle)
+                {
+                    Logger.Log(LogLevel.Warning, $"The IFeature.Styles can not contain a {nameof(IThemeStyle)}. Use {nameof(IThemeStyle)} on the layer");
+                    continue;
+                }
 
-        private static IStyle[] ToArray(ILayer layer)
-        {
-            return (layer.Style as StyleCollection)?.ToArray() ?? new[] { layer.Style };
+                if (featureStyle is StyleCollection styleCollection)
+                {
+                    Logger.Log(LogLevel.Warning, $"The IFeature.Styles can not contain a {nameof(StyleCollection)}. Use {nameof(StyleCollection)} on the layer");
+                    continue;
+                }
+
+                if (!featureStyle.ShouldBeApplied(viewport.Resolution)) continue;
+
+                callback(viewport, layer, featureStyle, feature, (float)layer.Opacity, iteration);
+            }
         }
     }
 }

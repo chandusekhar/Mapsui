@@ -1,65 +1,44 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <PackageVersion>2.0</PackageVersion>
-    <Authors>Mapsui Contributors</Authors>
-    <PackageIconUrl>https://github.com/Mapsui/Mapsui/blob/master/logo/png/icon.png</PackageIconUrl>
-    <NeutralLanguage>en</NeutralLanguage>
-    <PackageProjectUrl>https://github.com/Mapsui/Mapsui</PackageProjectUrl>
-    <Summary>Xamarin.Forms implementation of Mapsui</Summary>
-    <PackageTags>Mapsui Xamarin.Forms map maps mapping</PackageTags>
-    <Description>Xamarin.Forms implementation of Mapsui</Description>
-    <PackageId>Mapsui.Forms</PackageId>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>TRACE;__FORMS__;DEBUG;NETSTANDARD1_3</DefineConstants>
-  </PropertyGroup>
+﻿<Project Sdk="MSBuild.Sdk.Extras/3.0.44">
 
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType></DebugType>
-    <DefineConstants>TRACE;RELEASE;NETSTANDARD1_3;__FORMS__</DefineConstants>
-  </PropertyGroup>
-  <ItemGroup><!--<PackageReference Include="" Version=""/>-->
-  
-    <Folder Include="Properties\" />
+	<PropertyGroup>
+		<TargetFrameworks>netstandard2.0;netstandard2.1;xamarinios1.0</TargetFrameworks>
+		<NeutralLanguage>en</NeutralLanguage>
+		<PackageId>Mapsui.Forms</PackageId>
+		<Description>Mapsui.Forms - Library for mapping for Xamarin.Forms</Description>
+		<Authors>Dirk Weltz</Authors>
+		<PackageTags>$(PackageTags) xamarin.forms xamarin ios android windows uwp macos cross-platform</PackageTags>
+		<IsPackable>true</IsPackable>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<DefineConstants>TRACE;__FORMS__;DEBUG;NETSTANDARD1_3</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+		<DebugType>portable</DebugType>
+		<DefineConstants>TRACE;RELEASE;NETSTANDARD1_3;__FORMS__</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="SkiaSharp" />
+		<PackageReference Include="SkiaSharp.Views.Forms" />
+		<PackageReference Include="Xamarin.Essentials" />
+		<PackageReference Include="Xamarin.Forms" />
+	</ItemGroup>
+
+	<!--target to remove System.Memory-->
+  <ItemGroup>
+    <None Include="Mapsui.Forms.targets" PackagePath="build/xamarinios1.0/Mapsui.Forms.targets" Pack="true" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="SkiaSharp" Version="2.80.0" />
-    <PackageReference Include="SkiaSharp.Views.Forms" Version="2.80.0" />
-    <PackageReference Include="Topten.RichTextKit" Version="0.1.118" />
-    <PackageReference Include="Xamarin.Forms" Version="4.6.0.1073" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Mapsui.Geometries\Mapsui.Geometries.csproj" />
+	<ItemGroup>
     <ProjectReference Include="..\Mapsui.Rendering.Skia\Mapsui.Rendering.Skia.csproj" />
+    <ProjectReference Include="..\Mapsui.Tiling\Mapsui.Tiling.csproj" />
     <ProjectReference Include="..\Mapsui\Mapsui.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Remove="Images\Close.svg" />
-    <None Remove="Images\MyLocationMoving.svg" />
-    <None Remove="Images\MyLocationStill.svg" />
-    <None Remove="Images\Pin.svg" />
-    <None Remove="Images\MyLocationMoving.svg" />
-    <None Remove="Images\Location.svg" />
-    <None Remove="Images\LocationCenter.svg" />
-    <None Remove="Images\RotationZero.svg" />
-    <None Remove="Images\ZoomIn.svg" />
-    <None Remove="Images\ZoomOut.svg" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Images\Close.svg" />
-    <EmbeddedResource Include="Images\MyLocationStill.svg" />
-    <EmbeddedResource Include="Images\Pin.svg" />
-    <EmbeddedResource Include="Images\MyLocationMoving.svg" />
-    <EmbeddedResource Include="Images\LocationNoCenter.svg" />
-    <EmbeddedResource Include="Images\LocationCenter.svg" />
-    <EmbeddedResource Include="Images\RotationZero.svg" />
-    <EmbeddedResource Include="Images\ZoomIn.svg" />
-    <EmbeddedResource Include="Images\ZoomOut.svg" />
-  </ItemGroup>
-  <Import Project="..\Mapsui.UI.Shared\Mapsui.UI.Shared.projitems" Label="Shared" />
+	<Import Project="..\Mapsui.UI.Shared\Mapsui.UI.Shared.projitems" Label="Shared" />
+
+	<Import Project="..\Mapsui.UI.MapView\Mapsui.UI.MapView.projitems" Label="Shared" />
 
 </Project>

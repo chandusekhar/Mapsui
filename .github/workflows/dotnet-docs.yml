@@ -1,0 +1,32 @@
+name: Build Website
+
+on:
+  push:
+    branches:  
+      - master   
+      
+permissions:
+  contents: write
+  # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+  pages: write      # to deploy to Pages
+  id-token: write   # to verify the deployment originates from an appropriate source
+
+jobs:
+  build-and-publish-website:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0      
+    - name: Run DocFx
+      # Use a .cmd so this script can be run locally for testing
+      run: docfx\build-site.cmd      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v1
+      with:
+      # Upload the 'website' folder as artifact
+        path: 'website'
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v1

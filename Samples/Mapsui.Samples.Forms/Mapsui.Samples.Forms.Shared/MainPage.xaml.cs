@@ -1,66 +1,104 @@
-﻿using Mapsui.Layers;
+﻿using Mapsui.Logging;
 using Mapsui.Samples.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
 
-namespace Mapsui.Samples.Forms
+namespace Mapsui.Samples.Forms;
+
+[XamlCompilation(XamlCompilationOptions.Compile)]
+public partial class MainPage : ContentPage
 {
-    [XamlCompilation(XamlCompilationOptions.Compile)]
-    public partial class MainPage : ContentPage
-	{
-        IEnumerable<ISample> allSamples;
-        Func<object, EventArgs, bool> clicker;
+    static MainPage()
+    {
+        // todo: find proper way to load assembly
+        Mapsui.Tests.Common.Utilities.LoadAssembly();
+    }
 
-        public MainPage()
-		{
-            InitializeComponent();
+    IEnumerable<ISampleBase>? allSamples;
+    Func<object?, EventArgs, bool>? clicker;
 
-            allSamples = AllSamples.GetSamples();
+    public MainPage()
+    {
+        InitializeComponent();
+        SetupToolbar();
 
-            var categories = allSamples.Select(s => s.Category).Distinct().OrderBy(c => c);
-            foreach (var category in categories)
-            {
-                picker.Items?.Add(category);
-            }
-            picker.SelectedIndexChanged += PickerSelectedIndexChanged;
-            picker.SelectedItem = "Forms";
+        allSamples = AllSamples.GetSamples();
 
-            listView.ItemsSource = allSamples.Select(k => k.Name).ToList();
+        var categories = allSamples.Select(s => s.Category).Distinct().OrderBy(c => c).ToList();
+        categories.Insert(0, "All");
+        picker.ItemsSource = categories;
+        picker.SelectedIndexChanged += PickerSelectedIndexChanged;
+        picker.SelectedItem = "All";
+    }
+
+    private void FillListWithSamples()
+    {
+        var selectedCategory = picker.SelectedItem?.ToString() ?? "";
+        if (selectedCategory == "All")
+        {
+            listView.ItemsSource = allSamples.Select(x => x.Name);
+        }
+        else
+        {
+            listView.ItemsSource = allSamples
+                .Where(s => s.Category == selectedCategory)
+                .Select(x => x.Name);
+        }
+    }
+
+    private void PickerSelectedIndexChanged(object sender, EventArgs e)
+    {
+        FillListWithSamples();
+    }
+
+    private void LeakAction_Clicked(object sender, EventArgs e)
+    {
+        string report = Refs.Inspect();
+        NavigateToPage(new LeaksPage(report));
+    }
+
+    private void SetupToolbar()
+    {
+        var leakButton = new ToolbarItem
+        {
+            Text = "Leaks",
+            Order = ToolbarItemOrder.Secondary
+        };
+        leakButton.Clicked += LeakAction_Clicked;
+        ToolbarItems.Add(leakButton);
+    }
+
+    void OnSelection(object sender, SelectedItemChangedEventArgs e)
+    {
+        if (e.SelectedItem == null)
+        {
+            return; //ItemSelected is called on deselection, which results in SelectedItem being set to null
         }
 
-        private void FillListWithSamples()
+        var sampleName = e.SelectedItem.ToString();
+        var sample = allSamples.Where(x => x.Name == sampleName).FirstOrDefault<ISampleBase>();
+
+        clicker = null;
+        if (sample is IFormsSample fsample)
+            clicker = fsample.OnClick;
+
+        NavigateToPage(new MapPage(sample, clicker));
+
+        listView.SelectedItem = null;
+    }
+
+    public static async void NavigateToPage(Page page)
+    {
+        try
         {
-            var selectedCategory = picker.SelectedItem?.ToString() ?? "";
-            listView.ItemsSource = allSamples.Where(s => s.Category == selectedCategory).Select(x => x.Name);
+            await ((NavigationPage)Application.Current.MainPage).PushAsync(page);
         }
-
-        private void PickerSelectedIndexChanged(object sender, EventArgs e)
+        catch (Exception e)
         {
-            FillListWithSamples();
-        }
-
-        void OnSelection(object sender, SelectedItemChangedEventArgs e)
-        {
-            if (e.SelectedItem == null)
-            {
-                return; //ItemSelected is called on deselection, which results in SelectedItem being set to null
-            }
-
-            var sampleName = e.SelectedItem.ToString();
-            var sample = allSamples.Where(x => x.Name == sampleName).FirstOrDefault<ISample>();
-
-            clicker = null;
-            if (sample is IFormsSample)
-                clicker = ((IFormsSample)sample).OnClick;
-
-            ((NavigationPage)Application.Current.MainPage).PushAsync(new MapPage(sample.Setup, clicker));
-
-            listView.SelectedItem = null;
+            Logger.Log(LogLevel.Error, $"Error when navigating to page={page} exception={e}", e);
         }
     }
 }

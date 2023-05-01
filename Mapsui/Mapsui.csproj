@@ -1,24 +1,24 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="../Mapsui.Common.props" />
+
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <TargetFrameworks Condition="'$(SolutionName)' != 'Mapsui.Mac.Legacy'">$(TargetFrameworks);net6.0</TargetFrameworks>
+    <Configurations>Release;Debug</Configurations>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Description>Mapsui - Library for mapping</Description>
+		<IsPackable>true</IsPackable>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
+
   <ItemGroup>
-    <PackageReference Include="BruTile" Version="3.0.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <EmbeddedResource Include="Resources\Images\Pin.svg" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Mapsui.Geometries\Mapsui.Geometries.csproj" />
+  
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
   </ItemGroup>
 
   <PropertyGroup>
-    <DebugType>full</DebugType>
-    <PackageId>NotMapsui</PackageId>
-    <PackageVersion>1.0.0</PackageVersion>
-    <Description>Mapsui</Description>
+    <DebugType>portable</DebugType>
   </PropertyGroup>
 
 </Project>

@@ -1,73 +1,67 @@
-﻿using System.Reflection;
-using Mapsui.Geometries;
+﻿using System.Collections.Generic;
+using System.Reflection;
+using System.Threading.Tasks;
+using Mapsui.Extensions;
 using Mapsui.Layers;
 using Mapsui.Providers;
 using Mapsui.Samples.Common;
 using Mapsui.Styles;
 using Mapsui.UI;
+using Mapsui.Utilities;
 
-namespace Mapsui.Tests.Common.Maps
+namespace Mapsui.Tests.Common.Maps;
+
+public class BitmapSymbolSample : ISample
 {
-    public class BitmapSymbolSample : ISample
+    public string Name => "Bitmap Symbol";
+    public string Category => "Tests";
+
+    public Task<Map> CreateMapAsync() => Task.FromResult(CreateMap());
+
+
+    public static Map CreateMap()
     {
-        public string Name => "Bitmap Symbol";
-        public string Category => "Tests";
-
-        public void Setup(IMapControl mapControl)
+        var layer = new MemoryLayer
         {
-            mapControl.Map = CreateMap();
-        }
+            Style = null,
+            Features = CreateFeatures(),
+            Name = "Points with bitmaps"
+        };
 
-        public static Map CreateMap()
+        var map = new Map
         {
-            var map = new Map
+            BackColor = Color.FromString("WhiteSmoke"),
+            Home = n => n.ZoomToBox(layer.Extent!.Grow(layer.Extent.Width * 2))
+        };
+
+        map.Layers.Add(layer);
+
+        return map;
+    }
+
+    public static IEnumerable<IFeature> CreateFeatures()
+    {
+        var circleIconId = typeof(BitmapSymbolSample).LoadBitmapId("Resources.Images.circle.png");
+        var checkeredIconId = typeof(BitmapSymbolSample).LoadBitmapId("Resources.Images.checkered.png");
+
+        return new List<IFeature>
+        {
+            new PointFeature(new MPoint(50, 50))
             {
-                BackColor = Color.Transparent,
-                Home = n => n.NavigateTo(new Point(100, 100), 1)
-            };
-            map.Layers.Add(new MemoryLayer
+                Styles = new[] {new VectorStyle {Fill = new Brush(Color.Red)}}
+            },
+            new PointFeature(new MPoint(50, 100))
             {
-                Style = null,
-                DataSource = new MemoryProvider(CreateFeatures()),
-                Name = "Points with bitmaps"
-            });
-            return map;
-        }
-
-        public static Features CreateFeatures()
-        {
-            var circleIconId = LoadBitmap("Mapsui.Tests.Common.Resources.Images.circle.png");
-            var checkeredIconId = LoadBitmap("Mapsui.Tests.Common.Resources.Images.checkered.png");
-
-            return new Features
+                Styles = new[] {new SymbolStyle { BitmapId = circleIconId}}
+            },
+            new PointFeature(new MPoint(100, 50))
             {
-                new Feature
-                {
-                    Geometry = new Point(50, 50),
-                    Styles = new[] {new VectorStyle {Fill = new Brush(Color.Red)}}
-                },
-                new Feature
-                {
-                    Geometry = new Point(50, 100),
-                    Styles = new[] {new SymbolStyle {BitmapId = circleIconId}}
-                },
-                new Feature
-                {
-                    Geometry = new Point(100, 50),
-                    Styles = new[] {new SymbolStyle {BitmapId = checkeredIconId}}
-                },
-                new Feature
-                {
-                    Geometry = new Point(100, 100),
-                    Styles = new[] {new VectorStyle {Fill = new Brush(Color.Green), Outline = null}}
-                }
-            };
-        }
-
-        private static int LoadBitmap(string bitmapPath)
-        {
-            var bitmapStream = typeof(Utilities).GetTypeInfo().Assembly.GetManifestResourceStream(bitmapPath);
-            return BitmapRegistry.Instance.Register(bitmapStream);
-        }
+                Styles = new[] {new SymbolStyle { BitmapId = checkeredIconId}}
+            },
+            new PointFeature(new MPoint(100, 100))
+            {
+                Styles = new[] {new VectorStyle {Fill = new Brush(Color.Green), Outline = null}}
+            }
+        };
     }
 }

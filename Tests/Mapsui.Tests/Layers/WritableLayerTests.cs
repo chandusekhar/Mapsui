@@ -1,28 +1,28 @@
-﻿using Mapsui.Geometries;
-using Mapsui.Layers;
-using Mapsui.Providers;
+﻿using Mapsui.Layers;
+using Mapsui.Nts;
+using NetTopologySuite.Geometries;
 using NUnit.Framework;
 
-namespace Mapsui.Tests.Layers
+#pragma warning disable IDISP004 // Don't ignore created IDisposable
+
+namespace Mapsui.Tests.Layers;
+
+[TestFixture]
+public class WritableLayerTests
 {
-    [TestFixture]
-    public class WritableLayerTests
+    [Test]
+    public void DoNotCrashOnNullOrEmptyGeometries()
     {
-        [Test]
-        public void DoNotCrashOnNullOrEmptyGeometries()
-        {
-            // arrange
-            var writableLayer = new WritableLayer();
-            writableLayer.Add(new Feature());
-            writableLayer.Add(new Feature { Geometry = new Point() });
-            writableLayer.Add(new Feature { Geometry = new LineString() });
-            writableLayer.Add(new Feature { Geometry = new Polygon() });
+        // arrange
+        using var writableLayer = new WritableLayer();
+        writableLayer.Add(new GeometryFeature());
+        writableLayer.Add(new GeometryFeature((Point?)null));
+        writableLayer.Add(new GeometryFeature((LineString?)null));
+        writableLayer.Add(new GeometryFeature((Polygon?)null));
+        // act
+        var extent = writableLayer.Extent;
 
-            // act
-            var extents = writableLayer.Envelope;
-
-            // assert
-            Assert.IsNull(extents);
-        }
+        // assert
+        Assert.IsNull(extent);
     }
 }

@@ -1,107 +1,101 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using Mapsui.Geometries;
-using Mapsui.Projection;
+using System.Threading.Tasks;
+using Mapsui.Extensions;
+using Mapsui.Layers;
+using Mapsui.Logging;
 using Mapsui.Providers;
 using Mapsui.Styles;
 
-namespace Mapsui.Fetcher
+namespace Mapsui.Fetcher;
+
+internal class FeatureFetchDispatcher<T> : IFetchDispatcher where T : IFeature
 {
-    class FeatureFetchDispatcher : IFetchDispatcher
+    private FetchInfo? _fetchInfo;
+    private bool _busy;
+    private readonly ConcurrentStack<IFeature> _cache;
+    private bool _modified;
+
+    public FeatureFetchDispatcher(ConcurrentStack<IFeature> cache)
     {
-        private BoundingBox _extent;
-        private double _resolution;
-        private readonly object _lockRoot = new object();
-        private bool _busy;
-        private readonly MemoryProvider _cache;
-        private readonly Transformer _transformer;
-        private bool _modified;
-
-        // todo: Check whether busy and modified state are set correctly in all stages
-
-        public FeatureFetchDispatcher(MemoryProvider cache, Transformer transformer)
-        {
-            _cache = cache;
-            _transformer = transformer;
-        }
-
-        public bool TryTake(ref Action method)
-        {
-            if (!_modified) return false;
-            if (DataSource == null) return false; 
-
-            method = () => FetchOnThread(_extent.Copy(), _resolution);
-            _modified = false;
-            return true;
-        }
-
-        public void FetchOnThread(BoundingBox extent, double resolution)
-        {
-            try
-            {
-                var features = DataSource.GetFeaturesInView(extent, resolution).ToList();
-                FetchCompleted(features, null);
-            }
-            catch (Exception exception)
-            {
-                FetchCompleted(null, exception);
-            }
-        }
-
-        private void FetchCompleted(IEnumerable<IFeature> features, Exception exception)
-        {
-            lock (_lockRoot)
-            {
-                if (exception == null)
-                {
-                    _cache.ReplaceFeatures(_transformer.Transform(features));
-                }
-                
-                Busy = _modified;
-
-                DataChanged?.Invoke(this, new DataChangedEventArgs(exception, false, null));
-            }
-        }
-
-        public void SetViewport(BoundingBox extent, double resolution)
-        {
-            lock (_lockRoot)
-            {
-                // Fetch a bigger extent to include partially visible symbols. 
-                // todo: Take into account the maximum symbol size of the layer
-                var grownExtent = extent.Grow(
-                    SymbolStyle.DefaultWidth * 2 * resolution,
-                    SymbolStyle.DefaultHeight * 2 * resolution);
-                var transformedExtent = _transformer.TransformBack(grownExtent);
-                _extent = transformedExtent;
-                _resolution = resolution;
-                _modified = true;
-                Busy = true;
-            }
-        }
-
-        public IProvider DataSource { get; set; }
-
-        public bool Busy
-        {
-            get => _busy;
-            private set
-            {
-                if (_busy == value) return; // prevent notify              
-                _busy = value;
-                OnPropertyChanged(nameof(Busy));
-            }
-        }
-
-        private void OnPropertyChanged(string propertyName)
-        {
-            var handler = PropertyChanged;
-            handler?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-        public event DataChangedEventHandler DataChanged;
-        public event PropertyChangedEventHandler PropertyChanged;
+        _cache = cache;
     }
+
+    public bool TryTake([NotNullWhen(true)] out Func<Task>? method)
+    {
+        method = null;
+        if (!_modified) return false;
+        if (_fetchInfo == null) return false;
+
+        method = () => FetchOnThreadAsync(new FetchInfo(_fetchInfo));
+        _modified = false;
+        return true;
+    }
+
+    public async Task FetchOnThreadAsync(FetchInfo fetchInfo)
+    {
+        try
+        {
+            var features = DataSource != null ? await DataSource.GetFeaturesAsync(fetchInfo) : new List<IFeature>();
+
+            FetchCompleted(features, null);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(LogLevel.Error, ex.Message, ex);
+            FetchCompleted(null, ex);
+        }
+    }
+
+    private void FetchCompleted(IEnumerable<IFeature>? features, Exception? exception)
+    {
+        if (exception == null)
+        {
+            _cache.Clear();
+            if (features?.Any() ?? false)
+                _cache.PushRange(features.ToArray());
+        }
+
+        Busy = _modified;
+
+        DataChanged?.Invoke(this, new DataChangedEventArgs(exception, false, null));
+    }
+
+    public void SetViewport(FetchInfo fetchInfo)
+    {
+        // Fetch a bigger extent to include partially visible symbols. 
+        // todo: Take into account the maximum symbol size of the layer
+
+        _fetchInfo = fetchInfo.Grow(SymbolStyle.DefaultWidth);
+
+
+        _modified = true;
+        Busy = true;
+    }
+
+    public IProvider? DataSource { get; set; }
+
+    public bool Busy
+    {
+        get => _busy;
+        private set
+        {
+            if (_busy == value) return; // prevent notify              
+            _busy = value;
+            OnPropertyChanged(nameof(Busy));
+        }
+    }
+
+    private void OnPropertyChanged(string propertyName)
+    {
+        var handler = PropertyChanged;
+        handler?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public event DataChangedEventHandler? DataChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
 }

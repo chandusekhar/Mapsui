@@ -1,207 +1,197 @@
-using System.Linq;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using Mapsui.Fetcher;
-using Mapsui.Geometries;
 using Mapsui.Logging;
-using Mapsui.Providers;
 using Mapsui.Rendering;
+using Mapsui.Styles;
 
-namespace Mapsui.Layers
+namespace Mapsui.Layers;
+
+public class RasterizingLayer : BaseLayer, IAsyncDataFetcher, ISourceLayer
 {
-    public class RasterizingLayer : BaseLayer, IAsyncDataFetcher
+    private readonly ConcurrentStack<RasterFeature> _cache;
+    private readonly ILayer _layer;
+    private readonly float _pixelDensity;
+    private readonly object _syncLock = new();
+    private bool _busy;
+    private MSection? _currentSection;
+    private bool _modified;
+    private IEnumerable<IFeature>? _previousFeatures;
+    private readonly IRenderer _rasterizer = DefaultRendererFactory.Create();
+    private FetchInfo? _fetchInfo;
+    public Delayer Delayer { get; } = new();
+    private readonly Delayer _rasterizeDelayer = new();
+    private readonly RenderFormat _renderFormat;
+
+    /// <summary>
+    ///     Creates a RasterizingLayer which rasterizes a layer for performance
+    /// </summary>
+    /// <param name="layer">The Layer to be rasterized</param>
+    /// <param name="delayBeforeRasterize">Delay after viewport change to start re-rasterizing</param>
+    /// <param name="rasterizer">Rasterizer to use. null will use the default</param>
+    ///     Set the rasterization policy. false will trigger a rasterization on
+    ///     every viewport change. true will trigger a re-rasterization only if the viewport moves outside the existing
+    ///     rasterization.
+    /// </param>
+    /// <param name="pixelDensity"></param>
+    /// <param name="renderFormat">render Format png is default and skp is skia picture</param>
+    public RasterizingLayer(
+        ILayer layer,
+        int delayBeforeRasterize = 1000,
+        IRenderer? rasterizer = null,
+        float pixelDensity = 1,
+        RenderFormat renderFormat = RenderFormat.Png)
     {
-        private readonly MemoryProvider _cache;
-        private readonly ILayer _layer;
-        private readonly bool _onlyRerasterizeIfOutsideOverscan;
-        private readonly double _overscan;
-        private readonly double _renderResolutionMultiplier;
-        private readonly float _pixelDensity;
-        private readonly object _syncLock = new object();
-        private bool _busy;
-        private Viewport _currentViewport;
-        private BoundingBox _extent;
-        private bool _modified;
-        private IEnumerable<IFeature> _previousFeatures;
-        private IRenderer _rasterizer;
-        private double _resolution;
-        public Delayer Delayer { get; } = new Delayer();
-        private Delayer _rasterizeDelayer = new Delayer();
+        _renderFormat = renderFormat;
+        _renderFormat = renderFormat;
+        _layer = layer;
+        Name = layer.Name;
+        if (rasterizer != null) _rasterizer = rasterizer;
+        _cache = new ConcurrentStack<RasterFeature>();
+        _pixelDensity = pixelDensity;
+        _layer.DataChanged += LayerOnDataChanged;
+        Delayer.StartWithDelay = true;
+        Delayer.MillisecondsToWait = delayBeforeRasterize;
+        Style = new RasterStyle(); // default raster style
+    }
 
-        /// <summary>
-        ///     Creates a RasterizingLayer which rasterizes a layer for performance
-        /// </summary>
-        /// <param name="layer">The Layer to be rasterized</param>
-        /// <param name="delayBeforeRasterize">Delay after viewport change to start rerasterising</param>
-        /// <param name="renderResolutionMultiplier"></param>
-        /// <param name="rasterizer">Rasterizer to use. null will use the default</param>
-        /// <param name="overscanRatio">The ratio of the size of the rasterized output to the current viewport</param>
-        /// <param name="onlyRerasterizeIfOutsideOverscan">
-        ///     Set the rasterization policy. false will trigger a Rasterization on
-        ///     every viewport change. true will trigger a Rerasterization only if the viewport moves outside the existing
-        ///     rasterization.
-        /// </param>
-        public RasterizingLayer(
-            ILayer layer,
-            int delayBeforeRasterize = 1000,
-            double renderResolutionMultiplier = 1,
-            IRenderer rasterizer = null,
-            double overscanRatio = 1,
-            bool onlyRerasterizeIfOutsideOverscan = false,
-            float pixelDensity = 1)
+    public override MRect? Extent => _layer.Extent;
+
+    public ILayer SourceLayer => _layer;
+
+    private void LayerOnDataChanged(object sender, DataChangedEventArgs dataChangedEventArgs)
+    {
+        if (!Enabled) return;
+        if (_fetchInfo == null) return;
+        if (MinVisible > _fetchInfo.Resolution) return;
+        if (MaxVisible < _fetchInfo.Resolution) return;
+        if (_busy) return;
+
+        _modified = true;
+
+        // Will start immediately if it is not currently waiting. This well be in most cases.
+        _rasterizeDelayer.ExecuteDelayed(Rasterize);
+    }
+
+    private void Rasterize()
+    {
+        if (!Enabled) return;
+        if (_busy) return;
+        _busy = true;
+        _modified = false;
+
+        lock (_syncLock)
         {
-            if (overscanRatio < 1)
-                throw new ArgumentException($"{nameof(overscanRatio)} must be >= 1", nameof(overscanRatio));
-
-            _layer = layer;
-            Name = layer.Name;
-            _renderResolutionMultiplier = renderResolutionMultiplier;
-            _rasterizer = rasterizer;
-            _cache = new MemoryProvider();
-            _overscan = overscanRatio;
-            _onlyRerasterizeIfOutsideOverscan = onlyRerasterizeIfOutsideOverscan;
-            _pixelDensity = pixelDensity;
-            _layer.DataChanged += LayerOnDataChanged;
-            Delayer.StartWithDelay = true;
-            Delayer.MillisecondsToWait = delayBeforeRasterize;
-        }
-
-        public override BoundingBox Envelope => _layer.Envelope;
-
-        public ILayer ChildLayer => _layer;
-
-        private void LayerOnDataChanged(object sender, DataChangedEventArgs dataChangedEventArgs)
-        {
-            if (!Enabled) return;
-            if (MinVisible > _resolution) return;
-            if (MaxVisible < _resolution) return;
-            if (_busy) return;
-
-            _modified = true;
-
-            // Will start immediately if it is not currently waiting. This well be in most cases.
-            _rasterizeDelayer.ExecuteDelayed(Rasterize);
-        }
-
-        private void Rasterize()
-        {
-            if (!Enabled) return;
-            if (_busy) return;
-            _busy = true;
-            _modified = false;
-
-            lock (_syncLock)
+            try
             {
-                try
-                {
-                    if (double.IsNaN(_resolution) || _resolution <= 0) return;
-                    if (_extent.Width <= 0 || _extent.Height <= 0) return;
-                    var viewport = CreateViewport(_extent, _resolution, _renderResolutionMultiplier, _overscan);
+                if (_fetchInfo == null) return;
+                if (double.IsNaN(_fetchInfo.Resolution) || _fetchInfo.Resolution <= 0) return;
+                if (_fetchInfo.Extent == null || _fetchInfo.Extent?.Width <= 0 || _fetchInfo.Extent?.Height <= 0) return;
 
-                    _currentViewport = viewport;
+                _currentSection = _fetchInfo.Section;
 
-                    _rasterizer = _rasterizer ?? DefaultRendererFactory.Create();
+                using var bitmapStream = _rasterizer.RenderToBitmapStream(ToViewport(_currentSection),
+                    new[] { _layer }, pixelDensity: _pixelDensity, renderFormat: _renderFormat);
 
-                    var bitmapStream = _rasterizer.RenderToBitmapStream(viewport, new[] { _layer }, pixelDensity: _pixelDensity);
-                    RemoveExistingFeatures();
+                RemoveExistingFeatures();
 
-                    if (bitmapStream != null)
-                    {
-                        _cache.ReplaceFeatures(new Features
-                        {
-                            new Feature {Geometry = new Raster(bitmapStream, viewport.Extent)}
-                        });
-
+                _cache.Clear();
+                var features = new RasterFeature[1];
+                features[0] = new RasterFeature(new MRaster(bitmapStream.ToArray(), _currentSection.Extent));
+                _cache.PushRange(features);
 #if DEBUG
-                        Logger.Log(LogLevel.Debug, $"Memory after rasterizing layer {GC.GetTotalMemory(true):N0}");
+                Logger.Log(LogLevel.Debug, $"Memory after rasterizing layer {GC.GetTotalMemory(true):N0}");
 #endif
+                OnDataChanged(new DataChangedEventArgs());
 
-                        OnDataChanged(new DataChangedEventArgs());
-                    }
-
-                    if (_modified) Delayer.ExecuteDelayed(() => _layer.RefreshData(_extent.Copy(), _resolution, ChangeType.Discrete));
-                }
-                finally
-                {
-                    _busy = false;
-                }
+                if (_modified && _layer is IAsyncDataFetcher asyncDataFetcher)
+                    Delayer.ExecuteDelayed(() => asyncDataFetcher.RefreshData(_fetchInfo));
+            }
+            finally
+            {
+                _busy = false;
             }
         }
+    }
 
-        private void RemoveExistingFeatures()
+    private void RemoveExistingFeatures()
+    {
+        var features = _cache.ToArray();
+        _cache.Clear(); // clear before dispose to prevent possible null disposed exception on render
+
+        // Disposing previous and storing current in the previous field to prevent dispose during rendering.
+        if (_previousFeatures != null) DisposeRenderedGeometries(_previousFeatures);
+        _previousFeatures = features;
+    }
+
+    private static void DisposeRenderedGeometries(IEnumerable<IFeature> features)
+    {
+        foreach (var feature in features.Cast<RasterFeature>())
         {
-            var features = _cache.Features.ToList();
-            _cache.Clear(); // clear before dispose to prevent possible null disposed exception on render
-
-            // Disposing previous and storing current in the previous field to prevent dispose during rendering.
-            if (_previousFeatures != null) DisposeRenderedGeometries(_previousFeatures);
-            _previousFeatures = features;
-        }
-
-        private static void DisposeRenderedGeometries(IEnumerable<IFeature> features)
-        {
-            foreach (var feature in features)
+            foreach (var key in feature.RenderedGeometry.Keys)
             {
-                var raster = feature.Geometry as Raster;
-                raster?.Data?.Dispose();
-
-                foreach (var key in feature.RenderedGeometry.Keys)
-                {
-                    var disposable = feature.RenderedGeometry[key] as IDisposable;
-                    disposable?.Dispose();
-                }
+                var disposable = feature.RenderedGeometry[key] as IDisposable;
+                disposable?.Dispose();
             }
         }
+    }
 
-        public override IEnumerable<IFeature> GetFeaturesInView(BoundingBox extent, double resolution)
+    public static double SymbolSize { get; set; } = 64;
+
+    public override IEnumerable<IFeature> GetFeatures(MRect box, double resolution)
+    {
+        if (box == null) throw new ArgumentNullException(nameof(box));
+
+        var features = _cache.ToArray();
+
+        // Use a larger extent so that symbols partially outside of the extent are included
+        var biggerBox = box.Grow(resolution * SymbolSize * 0.5);
+
+        return features.Where(f => f.Raster != null && f.Raster.Intersects(biggerBox)).ToList();
+    }
+
+    public void AbortFetch()
+    {
+        if (_layer is IAsyncDataFetcher asyncLayer) asyncLayer.AbortFetch();
+    }
+
+    public void RefreshData(FetchInfo fetchInfo)
+    {
+        if (fetchInfo.Extent == null)
+            return;
+
+        if (!Enabled) return;
+        if (MinVisible > fetchInfo.Resolution) return;
+        if (MaxVisible < fetchInfo.Resolution) return;
+
+        if ((_currentSection == null) ||
+            (_currentSection.Resolution != fetchInfo.Section.Resolution) ||
+            !_currentSection.Extent.Contains(fetchInfo.Section.Extent))
         {
-            return _cache.GetFeaturesInView(extent, resolution);
+            // Explicitly set the change type to discrete for rasterization
+            _fetchInfo = new FetchInfo(fetchInfo.Section, fetchInfo.CRS);
+            if (_layer is IAsyncDataFetcher asyncDataFetcher)
+                Delayer.ExecuteDelayed(() => asyncDataFetcher.RefreshData(_fetchInfo));
+            else
+                Delayer.ExecuteDelayed(Rasterize);
         }
+    }
 
-        public void AbortFetch()
-        {
-            if (_layer is IAsyncDataFetcher asyncLayer) asyncLayer.AbortFetch();
-        }
+    public void ClearCache()
+    {
+        if (_layer is IAsyncDataFetcher asyncLayer) asyncLayer.ClearCache();
+    }
 
-        public override void RefreshData(BoundingBox extent, double resolution, ChangeType changeType)
-        {
-            var newViewport = CreateViewport(extent, resolution, _renderResolutionMultiplier, 1);
-
-            if (!Enabled) return;
-            if (MinVisible > resolution) return;
-            if (MaxVisible < resolution) return;
-
-            if (!_onlyRerasterizeIfOutsideOverscan ||
-                (_currentViewport == null) ||
-                // ReSharper disable once CompareOfFloatsByEqualityOperator
-                (_currentViewport.Resolution != newViewport.Resolution) ||
-                !_currentViewport.Extent.Contains(newViewport.Extent))
-            {
-                _extent = extent;
-                _resolution = resolution;
-                if (_layer is IAsyncDataFetcher)
-                    Delayer.ExecuteDelayed(() => _layer.RefreshData(extent.Copy(), resolution, changeType));
-                else
-                    Delayer.ExecuteDelayed(Rasterize);
-            }
-        }
-
-        public void ClearCache()
-        {
-            if (_layer is IAsyncDataFetcher asyncLayer) asyncLayer.ClearCache();
-        }
-
-        private static Viewport CreateViewport(BoundingBox extent, double resolution, double renderResolutionMultiplier,
-            double overscan)
-        {
-            var renderResolution = resolution / renderResolutionMultiplier;
-            return new Viewport
-            {
-                Resolution = renderResolution,
-                Center = extent.Centroid,
-                Width = extent.Width * overscan / renderResolution,
-                Height = extent.Height * overscan / renderResolution
-            };
-        }
+    public static Viewport ToViewport(MSection section)
+    {
+        return new Viewport(
+            section.Extent.Centroid.X,
+            section.Extent.Centroid.Y,
+            section.Resolution,
+            0,
+            section.ScreenWidth,
+            section.ScreenHeight);
     }
 }

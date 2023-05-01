@@ -1,15 +1,9 @@
 # **Mapsui** documentation.
 
 This is the documentation of the Mapsui open source map component.
-- The general documentation found [here](http://mapsui.com/documentation/home.html).
-- The api documentation found [here](http://mapsui.com/api/index.html).
-- The github repository, which also contains the samples, can be found [here](https://github.com/mapsui/mapsui).
-
-## Sponsors
-
-We are delightly with our first gold sponsor Sebastian Kruze, who has also contributed to Mapsui with informed test reports and expert advice.
-
-[Sebastian Kruse](https://github.com/Sebastian1989101)
+- [General documentation](https://mapsui.com/documentation/home.html)
+- [API documentation](https://mapsui.com/api/index.html)
+- [Mapsui on GitHub](https://github.com/mapsui/mapsui)
 
 ## Projects that use Mapsui
 
@@ -25,5 +19,4 @@ We are delightly with our first gold sponsor Sebastian Kruze, who has also contr
 
 ## Support
 
-If you are interested in more support for Mapsui please mail [pauldendulk@gmail.com](mailto:pauldendulk@gmail.com).
-
+If you are looking for paid support in the form of contract work or consoluting please mail [info.mapsui@gmail.com](mailto:info.mapsui@gmail.com).

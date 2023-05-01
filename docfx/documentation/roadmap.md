@@ -1,27 +1,24 @@
 # Roadmap 
-*Updated May 2020*
+*Updated February 2023*
 
+## Mapsui 4
+- Use NTS for geometries (done)
+- License to MIT (done)
+- Improve Viewport logic (in progress)
+- Improve MVVM support [#1731](https://github.com/Mapsui/Mapsui/issues/1731)
+- In render loop only draw skia object (do not create them) [#1448](https://github.com/Mapsui/Mapsui/issues/1448)
+- Release RC.1
+- Improve documentation
+- Improve samples
+- Add 'getting started' tutorials for all platforms
 
-- Replace Mapsui.Geometries with NTS
-- Add vector tiles
-- Improve performance
+## Mapsui 5
+- Everything to .NET 6
+- Remove:
+  - Xamarin.Forms
+  - Xamarin.Android
+  - Xamarin.iOS
+  - Uno UWP (not Uno WinUI)
 - World wrap
-- Improvements around Mapsui:
-  - Improve the documentation.
-  - Adding 'getting started' tutorials for all platforms.
-  - Improve the samples. Add comments, make them smaller (single purpose) and make them look better. 
-
-# Later
-- Change license to MIT
-
-# Not
-3D support
-
-
-
-
-
-
-
-
-
+- Further improve performance
+- Add vector tiles

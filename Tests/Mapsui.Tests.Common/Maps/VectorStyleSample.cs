@@ -1,65 +1,55 @@
-﻿using Mapsui.Geometries;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using Mapsui.Layers;
-using Mapsui.Providers;
 using Mapsui.Samples.Common;
 using Mapsui.Styles;
-using Mapsui.UI;
 
-namespace Mapsui.Tests.Common.Maps
+namespace Mapsui.Tests.Common.Maps;
+
+#pragma warning disable IDISP001 // Dispose created
+
+public class VectorStyleSample : ISample
 {
-    public class VectorStyleSample : ISample
+    public string Name => "Vector Style";
+    public string Category => "Tests";
+
+    public Task<Map> CreateMapAsync() => Task.FromResult(CreateMap());
+
+    public static Map CreateMap()
     {
-        public string Name => "Vector Style";
-        public string Category => "Tests";
-
-        public void Setup(IMapControl mapControl)
+        var layer = new MemoryLayer
         {
-            mapControl.Map = CreateMap();
-        }
+            Style = null,
+            Features = CreateFeaturesWithMPointsWithVectorStyle(),
+            Name = "MPoints with VectorStyle"
+        };
 
-        public static Map CreateMap()
+        var map = new Map
         {
-            var map = new Map
-            {
-                BackColor = Color.Transparent,
-                Home = n => n.NavigateTo( new Point(100, 100), 1)
-            };
-            map.Layers.Add(new MemoryLayer
-            {
-                Style = null,
-                DataSource = CreateProviderWithPointsWithVectorStyle(),
-                Name = "Points with VectorStyle"
-            });
-            return map;
-        }
+            BackColor = Color.FromString("WhiteSmoke"),
+            Home = n => n.ZoomToBox(layer.Extent!.Grow(layer.Extent.Width * 2))
+        };
+        map.Layers.Add(layer);
+        return map;
+    }
 
-        public static MemoryProvider CreateProviderWithPointsWithVectorStyle()
+    public static IEnumerable<IFeature> CreateFeaturesWithMPointsWithVectorStyle()
+    {
+        var features = new List<IFeature>
         {
-            var features = new Features
-            {
-                new Feature
-                {
-                    Geometry = new Point(50, 50),
-                    Styles = new[] {new VectorStyle {Fill = new Brush(Color.Red)}}
-                },
-                new Feature
-                {
-                    Geometry = new Point(50, 100),
-                    Styles = new[] {new VectorStyle {Fill = new Brush(Color.Yellow), Outline = new Pen(Color.Black, 2)}}
-                },
-                new Feature
-                {
-                    Geometry = new Point(100, 50),
-                    Styles = new[] {new VectorStyle {Fill = new Brush(Color.Blue), Outline = new Pen(Color.White, 2)}}
-                },
-                new Feature
-                {
-                    Geometry = new Point(100, 100),
-                    Styles = new[] {new VectorStyle {Fill = new Brush(Color.Green), Outline = null}}
-                }
-            };
-            var provider = new MemoryProvider(features);
-            return provider;
-        }
+            new PointFeature(new MPoint(50, 50)) {
+                Styles = new[] {new VectorStyle {Fill = new Brush(Color.Red)}}
+            },
+            new PointFeature(new MPoint(50, 100)) {
+                Styles = new[] {new VectorStyle {Fill = new Brush(Color.Yellow), Outline = new Pen(Color.Black, 2)}}
+            },
+            new PointFeature(new MPoint(100, 50)) {
+                Styles = new[] {new VectorStyle {Fill = new Brush(Color.Blue), Outline = new Pen(Color.White, 2)}}
+            },
+            new PointFeature(new MPoint(100, 100)) {
+                Styles = new[] {new VectorStyle {Fill = new Brush(Color.Green), Outline = null}}
+            }
+        };
+        return features;
     }
 }

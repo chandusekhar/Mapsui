@@ -1,140 +1,124 @@
-﻿using Mapsui.Rendering.Skia;
-using Mapsui.Samples.Common;
-using Mapsui.Samples.Common.ExtensionMethods;
-using Mapsui.UI.Forms;
-using Plugin.Geolocator;
+﻿using Plugin.Geolocator;
 using Plugin.Geolocator.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
+using Mapsui.Extensions;
+using Mapsui.Logging;
+using Mapsui.Samples.Common;
+using Mapsui.Samples.Common.Extensions;
+using Mapsui.Samples.CustomWidget;
+using Mapsui.Styles;
+using Mapsui.UI.Forms;
+using Mapsui.UI.Objects;
 
-namespace Mapsui.Samples.Forms
+namespace Mapsui.Samples.Forms;
+
+[XamlCompilation(XamlCompilationOptions.Compile)]
+public partial class MainPageLarge : ContentPage
 {
-    [XamlCompilation(XamlCompilationOptions.Compile)]
-    public partial class MainPageLarge : ContentPage
+    IEnumerable<ISampleBase>? allSamples;
+    Func<object?, EventArgs, bool>? clicker;
+
+    public MainPageLarge()
     {
-        IEnumerable<ISample> allSamples;
-        Func<object, EventArgs, bool> clicker;
+        InitializeComponent();
 
-        public MainPageLarge()
+        allSamples = AllSamples.GetSamples();
+
+        var categories = allSamples.Select(s => s.Category).Distinct().OrderBy(c => c);
+        picker.ItemsSource = categories.ToList<string>();
+        picker.SelectedIndexChanged += PickerSelectedIndexChanged;
+        picker.SelectedItem = "Forms";
+
+        mapView.RotationLock = false;
+        mapView.UnSnapRotationDegrees = 30;
+        mapView.ReSnapRotationDegrees = 5;
+
+        mapView.PinClicked += OnPinClicked;
+        mapView.MapClicked += OnMapClicked;
+
+        mapView.MyLocationLayer.UpdateMyLocation(new UI.Forms.Position());
+        mapView.MyLocationLayer.CalloutText = "My location!\n";
+        mapView.MyLocationLayer.Clicked += MyLocationClicked;
+
+        mapView.Renderer.WidgetRenders[typeof(CustomWidget.CustomWidget)] = new CustomWidgetSkiaRenderer();
+
+        StartGPS();
+    }
+
+    protected override void OnAppearing()
+    {
+        mapView.Refresh();
+    }
+
+    private void FillListWithSamples()
+    {
+        var selectedCategory = picker.SelectedItem?.ToString() ?? "";
+        listView.ItemsSource = allSamples.Where(s => s.Category == selectedCategory).Select(x => x.Name);
+    }
+
+    private void PickerSelectedIndexChanged(object sender, EventArgs e)
+    {
+        FillListWithSamples();
+    }
+
+    private void OnMapClicked(object sender, MapClickedEventArgs e)
+    {
+        e.Handled = clicker != null && (clicker?.Invoke(sender as MapView, e) ?? false);
+    }
+
+    void OnSelection(object sender, SelectedItemChangedEventArgs e)
+    {
+        if (e.SelectedItem == null)
         {
-            InitializeComponent();
+            return; //ItemSelected is called on deselection, which results in SelectedItem being set to null
+        }
 
-            allSamples = AllSamples.GetSamples();
+        var sampleName = e.SelectedItem.ToString();
+        var sample = allSamples.Where(x => x.Name == sampleName).FirstOrDefault<ISampleBase>();
 
-            var categories = allSamples.Select(s => s.Category).Distinct().OrderBy(c => c);
-            foreach (var category in categories)
+        if (sample != null)
+        {
+            mapView.Reset();
+            Catch.Exceptions(async () =>
             {
-                picker.Items?.Add(category);
-            }
-            picker.SelectedIndexChanged += PickerSelectedIndexChanged;
-            picker.SelectedItem = "Forms";
-
-            mapView.RotationLock = false;
-            mapView.UnSnapRotationDegrees = 30;
-            mapView.ReSnapRotationDegrees = 5;
-
-            mapView.PinClicked += OnPinClicked;
-            mapView.MapClicked += OnMapClicked;
-
-            mapView.MyLocationLayer.UpdateMyLocation(new UI.Forms.Position());
-
-            mapView.IsZoomButtonVisible = true;
-            mapView.IsMyLocationButtonVisible = true;
-            mapView.IsNorthingButtonVisible = true;
-
-            mapView.Info += MapView_Info;
-
-            StartGPS();
+                await sample.SetupAsync(mapView);
+            });
         }
 
-        protected override void OnAppearing()
-        {
-            mapView.Refresh();
-        }
+        clicker = null;
+        if (sample is IFormsSample formsSample)
+            clicker = formsSample.OnClick;
 
-        private void MapView_Info(object sender, UI.MapInfoEventArgs e)
-        {
-            featureInfo.Text = $"Click Info:";
+        listView.SelectedItem = null;
+    }
 
-            if (e?.MapInfo?.Feature != null)
+    private void OnPinClicked(object sender, PinClickedEventArgs e)
+    {
+        if (e.Pin != null)
+        {
+            if (e.NumOfTaps == 2)
             {
-                featureInfo.Text = $"Click Info:{Environment.NewLine}{e.MapInfo.Feature.ToDisplayText()}";
-
-                foreach (var style in e.MapInfo.Feature.Styles)
-                {
-                    if (style is CalloutStyle)
-                    {
-                        style.Enabled = !style.Enabled;
-                        e.Handled = true;
-                    }
-                }
-
-                mapView.Refresh();
+                // Hide Pin when double click
+                //DisplayAlert($"Pin {e.Pin.Label}", $"Is at position {e.Pin.Position}", "Ok");
+                e.Pin.IsVisible = false;
             }
+            if (e.NumOfTaps == 1)
+                if (e.Pin.Callout.IsVisible)
+                    e.Pin.HideCallout();
+                else
+                    e.Pin.ShowCallout();
         }
 
-        private void FillListWithSamples()
-        {
-            var selectedCategory = picker.SelectedItem?.ToString() ?? "";
-            listView.ItemsSource = allSamples.Where(s => s.Category == selectedCategory).Select(x => x.Name);
-        }
+        e.Handled = true;
+    }
 
-        private void PickerSelectedIndexChanged(object sender, EventArgs e)
-        {
-            FillListWithSamples();
-        }
-
-        private void OnMapClicked(object sender, MapClickedEventArgs e)
-        {
-            e.Handled = clicker == null ? false : (bool)clicker?.Invoke(sender as MapView, e);
-        }
-
-        void OnSelection(object sender, SelectedItemChangedEventArgs e)
-        {
-            if (e.SelectedItem == null)
-            {
-                return; //ItemSelected is called on deselection, which results in SelectedItem being set to null
-            }
-
-            var sampleName = e.SelectedItem.ToString();
-            var sample = allSamples.Where(x => x.Name == sampleName).FirstOrDefault<ISample>();
-
-            if (sample != null)
-            {
-                sample.Setup(mapView);
-            }
-
-            clicker = null;
-            if (sample is IFormsSample)
-                clicker = ((IFormsSample)sample).OnClick;
-
-            listView.SelectedItem = null;
-        }
-
-        private void OnPinClicked(object sender, PinClickedEventArgs e)
-        {
-            if (e.Pin != null)
-            {
-                if (e.NumOfTaps == 2)
-                {
-                    // Hide Pin when double click
-                    //DisplayAlert($"Pin {e.Pin.Label}", $"Is at position {e.Pin.Position}", "Ok");
-                    e.Pin.IsVisible = false;
-                }
-                if (e.NumOfTaps == 1)
-                    if (e.Pin.Callout.IsVisible)
-                        e.Pin.HideCallout();
-                    else
-                        e.Pin.ShowCallout();
-            }
-
-            e.Handled = true;
-        }
-
-        public async void StartGPS()
+    public async void StartGPS()
+    {
+        try
         {
             if (Device.RuntimePlatform == Device.WPF)
                 return;
@@ -155,9 +139,17 @@ namespace Mapsui.Samples.Forms
 
             CrossGeolocator.Current.PositionChanged += MyLocationPositionChanged;
             CrossGeolocator.Current.PositionError += MyLocationPositionError;
-        }
 
-        public async void StopGPS()
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(LogLevel.Error, ex.Message, ex);
+        }
+    }
+
+    public async void StopGPS()
+    {
+        try
         {
             if (Device.RuntimePlatform == Device.WPF)
                 return;
@@ -168,30 +160,45 @@ namespace Mapsui.Samples.Forms
                 await CrossGeolocator.Current.StopListeningAsync();
             }
         }
-
-        /// <summary>
-        /// If there was an error while getting GPS coordinates
-        /// </summary>
-        /// <param name="sender">Geolocator</param>
-        /// <param name="e">Event arguments for position error</param>
-        private void MyLocationPositionError(object sender, PositionErrorEventArgs e)
+        catch (Exception ex)
         {
+            Logger.Log(LogLevel.Error, ex.Message, ex);
         }
+    }
 
-        /// <summary>
-        /// New informations from Geolocator arrived
-        /// </summary>
-        /// <param name="sender">Geolocator</param>
-        /// <param name="e">Event arguments for new position</param>
-        private void MyLocationPositionChanged(object sender, PositionEventArgs e)
+    /// <summary>
+    /// If there was an error while getting GPS coordinates
+    /// </summary>
+    /// <param name="sender">Geolocator</param>
+    /// <param name="e">Event arguments for position error</param>
+    private void MyLocationPositionError(object sender, PositionErrorEventArgs e)
+    {
+    }
+
+    /// <summary>
+    /// New informations from Geolocator arrived
+    /// </summary>
+    /// <param name="sender">Geolocator</param>
+    /// <param name="e">Event arguments for new position</param>
+    private void MyLocationPositionChanged(object sender, PositionEventArgs e)
+    {
+        Device.BeginInvokeOnMainThread(() =>
         {
-            Device.BeginInvokeOnMainThread(() =>
-            {
-                mapView.MyLocationLayer.UpdateMyLocation(new UI.Forms.Position(e.Position.Latitude, e.Position.Longitude));
-                mapView.MyLocationLayer.UpdateMyDirection(e.Position.Heading, mapView.Viewport.Rotation);
-                mapView.MyLocationLayer.UpdateMySpeed(e.Position.Speed);
-            });
-        }
+            mapView.MyLocationLayer.UpdateMyLocation(new UI.Forms.Position(e.Position.Latitude, e.Position.Longitude));
+            mapView.MyLocationLayer.UpdateMyDirection(e.Position.Heading, mapView.Map.Navigator.Viewport.Rotation);
+            mapView.MyLocationLayer.UpdateMySpeed(e.Position.Speed);
+            mapView.MyLocationLayer.CalloutText = $"My location:\nlat={e.Position.Latitude:F6}°\nlon={e.Position.Longitude:F6}°";
+        });
+    }
 
+
+    public void MyLocationClicked(object sender, DrawableClickedEventArgs args)
+    {
+        var myLocLayer = sender as MyLocationLayer;
+        args.Handled = true;
+        if (myLocLayer == null)
+            return;
+        // toggle label
+        myLocLayer.ShowCallout = !myLocLayer.ShowCallout;
     }
 }

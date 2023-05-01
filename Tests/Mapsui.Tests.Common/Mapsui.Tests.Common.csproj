@@ -1,7 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(SolutionName)' != 'Mapsui.Mac.Legacy'">$(TargetFrameworks);net6.0</TargetFrameworks>
   </PropertyGroup>
+
   <ItemGroup>
     <None Remove="Resources\Images\avion_silhouette.png" />
     <None Remove="Resources\Images\checkered.png" />
@@ -9,12 +12,14 @@
     <None Remove="Resources\Images\Ghostscript_Tiger.svg" />
     <None Remove="Resources\Images\iconthatneedsoffset.png" />
     <None Remove="Resources\Images\osm-liberty.png" />
+    <None Remove="Resources\Images\Pin.svg" />
     <None Remove="Resources\SampleTiles\0_0_0.png" />
     <None Remove="Resources\SampleTiles\1_0_0.png" />
     <None Remove="Resources\SampleTiles\1_0_1.png" />
     <None Remove="Resources\SampleTiles\1_1_0.png" />
     <None Remove="Resources\SampleTiles\1_1_1.png" />
   </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Resources\Images\avion_silhouette.png" />
     <EmbeddedResource Include="Resources\Images\checkered.png" />
@@ -22,23 +27,23 @@
     <EmbeddedResource Include="Resources\Images\Ghostscript_Tiger.svg" />
     <EmbeddedResource Include="Resources\Images\iconthatneedsoffset.png" />
     <EmbeddedResource Include="Resources\Images\osm-liberty.png" />
+    <EmbeddedResource Include="Resources\Images\Pin.svg" />
     <EmbeddedResource Include="Resources\SampleTiles\0_0_0.png" />
     <EmbeddedResource Include="Resources\SampleTiles\1_0_0.png" />
     <EmbeddedResource Include="Resources\SampleTiles\1_0_1.png" />
     <EmbeddedResource Include="Resources\SampleTiles\1_1_0.png" />
     <EmbeddedResource Include="Resources\SampleTiles\1_1_1.png" />
   </ItemGroup>
+
   <ItemGroup>
-    <ProjectReference Include="..\..\Mapsui.Geometries\Mapsui.Geometries.csproj" />
+    <ProjectReference Include="..\..\Mapsui.Tiling\Mapsui.Tiling.csproj" />
     <ProjectReference Include="..\..\Mapsui\Mapsui.csproj" />
     <ProjectReference Include="..\..\Samples\Mapsui.Samples.Common\Mapsui.Samples.Common.csproj" />
     <ProjectReference Include="..\..\Samples\Mapsui.Samples.CustomWidget\Mapsui.Samples.CustomWidget.csproj" />
   </ItemGroup>
+
   <ItemGroup>
-    <Folder Include="Properties\" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="BruTile" Version="3.0.0" />
+    <PackageReference Include="BruTile" />
   </ItemGroup>
 
 </Project>

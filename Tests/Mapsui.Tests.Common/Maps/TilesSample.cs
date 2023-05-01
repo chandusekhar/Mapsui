@@ -1,67 +1,66 @@
 ﻿using System.Collections.Generic;
-using System.IO;
+using System.Threading.Tasks;
 using BruTile;
-using Mapsui.Geometries;
 using Mapsui.Layers;
-using Mapsui.Providers;
 using Mapsui.Samples.Common;
 using Mapsui.Styles;
-using Mapsui.UI;
+using Mapsui.Tiling.Extensions;
 
-namespace Mapsui.Tests.Common.Maps
+namespace Mapsui.Tests.Common.Maps;
+
+public class TilesSample : ISample
 {
-    public class TilesSample : ISample
+    public string Name => "Tiles";
+    public string Category => "Tests";
+
+    public async Task<Map> CreateMapAsync()
     {
-        public string Name => "Tiles";
-        public string Category => "Tests";
+        var layer = await CreateLayerAsync();
 
-        public void Setup(IMapControl mapControl)
+        var map = new Map
         {
-            mapControl.Map = CreateMap();
-        }
+            BackColor = Color.FromString("WhiteSmoke"),
+            Home = n => n.ZoomToPanBounds()
+        };
 
-        public static Map CreateMap()
+        map.Layers.Add(layer);
+
+        return map;
+    }
+
+    private static async Task<MemoryLayer> CreateLayerAsync()
+    {
+        var tileIndexes = new[]
         {
-            var map = new Map
+            new TileIndex(0, 0, 1),
+            new TileIndex(1, 0, 1),
+            new TileIndex(0, 1, 1),
+            new TileIndex(1, 1, 1)
+        };
+
+        return new MemoryLayer
+        {
+            Features = await TileIndexToFeaturesAsync(tileIndexes, new SampleTileSource()),
+            Name = "Tiles",
+            Style = new RasterStyle()
+        };
+    }
+
+    private static async Task<List<RasterFeature>> TileIndexToFeaturesAsync(TileIndex[] tileIndexes, ITileSource tileSource)
+    {
+        var features = new List<RasterFeature>();
+        foreach (var tileIndex in tileIndexes)
+        {
+            var tileInfo = new TileInfo
             {
-                BackColor = Color.Transparent,
-                Home = n => n.NavigateTo(new Point(-7641856, 4804912), 51116)
+                Index = tileIndex,
+                Extent = TileTransform.TileToWorld(
+                    new TileRange(tileIndex.Col, tileIndex.Row), tileIndex.Level, tileSource.Schema)
             };
 
-            var tileIndexes = new[]
-            {
-                new TileIndex(0, 0, 1),
-                new TileIndex(1, 0, 1),
-                new TileIndex(0, 1, 1),
-                new TileIndex(1, 1, 1)
-            };
-
-            var features = TileIndexToFeatures(tileIndexes, new SampleTileSource());
-            map.Layers.Add(new MemoryLayer {DataSource = new MemoryProvider(features), Name = "Tiles"});
-            return map;
+            var raster = new MRaster(await tileSource.GetTileAsync(tileInfo), tileInfo.Extent.ToMRect());
+            features.Add(new RasterFeature(raster));
         }
-
-        private static List<IFeature> TileIndexToFeatures(TileIndex[] tileIndexes, ITileSource tileSource)
-        {
-            var features = new List<IFeature>();
-            foreach (var tileIndex in tileIndexes)
-            {
-                var tileInfo = new TileInfo
-                {
-                    Index = tileIndex,
-                    Extent = TileTransform.TileToWorld(
-                        new TileRange(tileIndex.Col, tileIndex.Row), tileIndex.Level, tileSource.Schema)
-                };
-
-                var feature = new Feature
-                {
-                    Geometry = new Raster(new MemoryStream(
-                        tileSource.GetTile(tileInfo)), tileInfo.Extent.ToBoundingBox())
-                };
-
-                features.Add(feature);
-            }
-            return features;
-        }
+        return features;
     }
 }

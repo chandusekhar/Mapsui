@@ -1,37 +1,42 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Diagnostics;
+using Mapsui.Logging;
 
 using Xamarin.Forms;
 
-namespace Mapsui.Samples.Forms
+namespace Mapsui.Samples.Forms;
+
+public partial class App : Application
 {
-    public partial class App : Application
+    public App()
     {
-        public App()
-        {
-            InitializeComponent();
+        InitializeComponent();
 
-            if (Device.Idiom == TargetIdiom.Phone)
-                MainPage = new NavigationPage(new Mapsui.Samples.Forms.MainPage());
-            else
-                MainPage = new Mapsui.Samples.Forms.MainPageLarge();
-        }
+        Logger.LogDelegate += LogMethod;
 
-        protected override void OnStart()
-        {
-            // Handle when your app starts
-        }
+        if (Device.Idiom == TargetIdiom.Phone)
+            MainPage = new NavigationPage(new MainPage());
+        else
+            MainPage = new MainPageLarge();
+    }
 
-        protected override void OnSleep()
-        {
-            // Handle when your app sleeps
-        }
+    protected override void OnStart()
+    {
+        // Handle when your app starts
+    }
 
-        protected override void OnResume()
-        {
-            // Handle when your app resumes
-        }
+    protected override void OnSleep()
+    {
+        // Handle when your app sleeps
+    }
+
+    protected override void OnResume()
+    {
+        // Handle when your app resumes
+    }
+
+    private void LogMethod(LogLevel logLevel, string? message, Exception? exception)
+    {
+        Debug.WriteLine($"{logLevel}: {message}, {exception}");
     }
 }

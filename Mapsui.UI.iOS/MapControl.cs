@@ -1,42 +1,98 @@
-using CoreFoundation;
-using Foundation;
-using UIKit;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using CoreFoundation;
 using CoreGraphics;
-using Mapsui.Geometries;
-using Mapsui.Geometries.Utilities;
-using SkiaSharp.Views.iOS;
+using Foundation;
+using Mapsui.UI.iOS.Extensions;
 using Mapsui.Utilities;
+using SkiaSharp.Views.iOS;
+using UIKit;
 
-namespace Mapsui.UI.iOS
+#nullable enable
+
+namespace Mapsui.UI.iOS;
+
+[Register("MapControl"), DesignTimeVisible(true)]
+public partial class MapControl : UIView, IMapControl
 {
-    [Register("MapControl"), DesignTimeVisible(true)]
-    public partial class MapControl : UIView, IMapControl
+    private SKGLView? _glCanvas;
+    private SKCanvasView? _canvas;
+    private double _virtualRotation;
+    private bool _init;
+
+    public static bool UseGPU { get; set; } = true;
+
+    public MapControl(CGRect frame)
+        : base(frame)
     {
-        private readonly SKGLView _canvas = new SKGLView();
-        private double _innerRotation;
+        CommonInitialize();
+        Initialize();
+    }
 
-        public MapControl(CGRect frame)
-            : base(frame)
+    [Preserve]
+    public MapControl(IntPtr handle) : base(handle) // used when initialized from storyboard
+    {
+        CommonInitialize();
+        Initialize();
+    }
+
+    private void InitCanvas()
+    {
+        if (!_init)
         {
-            Initialize();
+            _init = true;
+            if (UseGPU)
+            {
+                _glCanvas?.Dispose();
+                _glCanvas = new SKGLView();
+            }
+            else
+            {
+                _canvas?.Dispose();
+                _canvas = new SKCanvasView();
+            }
         }
+    }
 
-        [Preserve]
-        public MapControl(IntPtr handle) : base(handle) // used when initialized from storyboard
+    private void Initialize()
+    {
+        InitCanvas();
+
+        _invalidate = () =>
         {
-            Initialize();
+            RunOnUIThread(() =>
+            {
+                SetNeedsDisplay();
+                _glCanvas?.SetNeedsDisplay();
+            });
+        };
+
+        BackgroundColor = UIColor.White;
+
+        if (UseGPU)
+        {
+            _glCanvas!.TranslatesAutoresizingMaskIntoConstraints = false;
+            _glCanvas.MultipleTouchEnabled = true;
+            _glCanvas.PaintSurface += OnPaintSurface;
+            AddSubview(_glCanvas);
+
+            AddConstraints(new[]
+            {
+                NSLayoutConstraint.Create(this, NSLayoutAttribute.Leading, NSLayoutRelation.Equal, _glCanvas,
+                    NSLayoutAttribute.Leading, 1.0f, 0.0f),
+                NSLayoutConstraint.Create(this, NSLayoutAttribute.Trailing, NSLayoutRelation.Equal, _glCanvas,
+                    NSLayoutAttribute.Trailing, 1.0f, 0.0f),
+                NSLayoutConstraint.Create(this, NSLayoutAttribute.Top, NSLayoutRelation.Equal, _glCanvas,
+                    NSLayoutAttribute.Top, 1.0f, 0.0f),
+                NSLayoutConstraint.Create(this, NSLayoutAttribute.Bottom, NSLayoutRelation.Equal, _glCanvas,
+                    NSLayoutAttribute.Bottom, 1.0f, 0.0f)
+            });
         }
-
-        public void Initialize()
+        else
         {
-            Map = new Map();
-            BackgroundColor = UIColor.White;
-
-            _canvas.TranslatesAutoresizingMaskIntoConstraints = false;
+            _canvas!.TranslatesAutoresizingMaskIntoConstraints = false;
             _canvas.MultipleTouchEnabled = true;
             _canvas.PaintSurface += OnPaintSurface;
             AddSubview(_canvas);
@@ -52,214 +108,255 @@ namespace Mapsui.UI.iOS
                 NSLayoutConstraint.Create(this, NSLayoutAttribute.Bottom, NSLayoutRelation.Equal, _canvas,
                     NSLayoutAttribute.Bottom, 1.0f, 0.0f)
             });
+        }
 
-            ClipsToBounds = true;
-            MultipleTouchEnabled = true;
-            UserInteractionEnabled = true;
+        ClipsToBounds = true;
+        MultipleTouchEnabled = true;
+        UserInteractionEnabled = true;
 
-            var doubleTapGestureRecognizer = new UITapGestureRecognizer(OnDoubleTapped)
+        var doubleTapGestureRecognizer = new UITapGestureRecognizer(OnDoubleTapped)
+        {
+            NumberOfTapsRequired = 2,
+            CancelsTouchesInView = false,
+        };
+        AddGestureRecognizer(doubleTapGestureRecognizer);
+
+        var tapGestureRecognizer = new UITapGestureRecognizer(OnSingleTapped)
+        {
+            NumberOfTapsRequired = 1,
+            CancelsTouchesInView = false,
+        };
+        tapGestureRecognizer.RequireGestureRecognizerToFail(doubleTapGestureRecognizer);
+        AddGestureRecognizer(tapGestureRecognizer);
+
+        Map.Navigator.SetSize(ViewportWidth, ViewportHeight);
+    }
+
+
+    private void OnDoubleTapped(UITapGestureRecognizer gesture)
+    {
+        var position = GetScreenPosition(gesture.LocationInView(this));
+        OnInfo(InvokeInfo(position, position, 2));
+    }
+
+    private void OnSingleTapped(UITapGestureRecognizer gesture)
+    {
+        var position = GetScreenPosition(gesture.LocationInView(this));
+        OnInfo(InvokeInfo(position, position, 1));
+    }
+
+    private void OnPaintSurface(object? sender, SKPaintGLSurfaceEventArgs args)
+    {
+        if (PixelDensity <= 0)
+            return;
+
+        var canvas = args.Surface.Canvas;
+
+        canvas.Scale(PixelDensity, PixelDensity);
+
+        CommonDrawControl(canvas);
+    }
+
+    private void OnPaintSurface(object? sender, SKPaintSurfaceEventArgs args)
+    {
+        if (PixelDensity <= 0)
+            return;
+
+        var canvas = args.Surface.Canvas;
+
+        canvas.Scale(PixelDensity, PixelDensity);
+
+        CommonDrawControl(canvas);
+    }
+
+    public override void TouchesBegan(NSSet touches, UIEvent? evt)
+    {
+        base.TouchesBegan(touches, evt);
+
+        _virtualRotation = Map.Navigator.Viewport.Rotation;
+    }
+
+    public override void TouchesMoved(NSSet touches, UIEvent? evt)
+    {
+        base.TouchesMoved(touches, evt);
+
+        if (evt?.AllTouches.Count == 1)
+        {
+            if (touches.AnyObject is UITouch touch)
             {
-                NumberOfTapsRequired = 2,
-                CancelsTouchesInView = false,
-            };
-            AddGestureRecognizer(doubleTapGestureRecognizer);
-
-            var tapGestureRecognizer = new UITapGestureRecognizer(OnSingleTapped)
-            {
-                NumberOfTapsRequired = 1,
-                CancelsTouchesInView = false,
-            };
-            tapGestureRecognizer.RequireGestureRecognizerToFail(doubleTapGestureRecognizer);
-            AddGestureRecognizer(tapGestureRecognizer);
-
-            _viewport.SetSize(ViewportWidth, ViewportHeight);
-        }
-
-
-        private void OnDoubleTapped(UITapGestureRecognizer gesture)
-        {
-            var position = GetScreenPosition(gesture.LocationInView(this));
-            OnInfo(InvokeInfo(position, position, 2));
-        }
-
-        private void OnSingleTapped(UITapGestureRecognizer gesture)
-        {
-            var position = GetScreenPosition(gesture.LocationInView(this));
-            OnInfo(InvokeInfo(position, position, 1));
-        }
-
-        void OnPaintSurface(object sender, SKPaintGLSurfaceEventArgs args)
-        {
-            if (PixelDensity <= 0) return;
-
-            args.Surface.Canvas.Scale(PixelDensity, PixelDensity);
-
-            Navigator.UpdateAnimations();
-            Renderer.Render(args.Surface.Canvas, new Viewport(Viewport), _map.Layers, _map.Widgets, _map.BackColor);
-        }
-
-        public override void TouchesBegan(NSSet touches, UIEvent evt)
-        {
-            base.TouchesBegan(touches, evt);
-
-            _innerRotation = Viewport.Rotation;
-
-            // We have a new interaction with the screen, so stop all navigator animations
-            Navigator.StopRunningAnimation();
-        }
-
-        public override void TouchesMoved(NSSet touches, UIEvent evt)
-        {
-            base.TouchesMoved(touches, evt);
-
-            if (evt.AllTouches.Count == 1)
-            {
-                if (touches.AnyObject is UITouch touch)
-                {
-                    var position = touch.LocationInView(this).ToMapsui();
-                    var previousPosition = touch.PreviousLocationInView(this).ToMapsui();
-
-                    _viewport.Transform(position, previousPosition);
-                    RefreshGraphics();
-
-                    _innerRotation = Viewport.Rotation;
-                }
-            }
-            else if (evt.AllTouches.Count >= 2)
-            {
-                var previousLocation = evt.AllTouches.Select(t => ((UITouch) t).PreviousLocationInView(this))
-                    .Select(p => new Point(p.X, p.Y)).ToList();
-
-                var locations = evt.AllTouches.Select(t => ((UITouch) t).LocationInView(this))
-                    .Select(p => new Point(p.X, p.Y)).ToList();
-
-                var (previousCenter, previousRadius, previousAngle) = GetPinchValues(previousLocation);
-                var (center, radius, angle) = GetPinchValues(locations);
-
-                double rotationDelta = 0;
-
-                if (!Map.RotationLock)
-                {
-                    _innerRotation += angle - previousAngle;
-                    _innerRotation %= 360;
-
-                    if (_innerRotation > 180)
-                        _innerRotation -= 360;
-                    else if (_innerRotation < -180)
-                        _innerRotation += 360;
-
-                    if (Viewport.Rotation == 0 && Math.Abs(_innerRotation) >= Math.Abs(UnSnapRotationDegrees))
-                        rotationDelta = _innerRotation;
-                    else if (Viewport.Rotation != 0)
-                    {
-                        if (Math.Abs(_innerRotation) <= Math.Abs(ReSnapRotationDegrees))
-                            rotationDelta = -Viewport.Rotation;
-                        else
-                            rotationDelta = _innerRotation - Viewport.Rotation;
-                    }
-                }
-
-                _viewport.Transform(center, previousCenter, radius / previousRadius, rotationDelta);
-                RefreshGraphics();
+                var position = touch.LocationInView(this).ToMapsui();
+                var previousPosition = touch.PreviousLocationInView(this).ToMapsui();
+                Map.Navigator.Drag(position, previousPosition);
+                _virtualRotation = Map.Navigator.Viewport.Rotation;
             }
         }
-
-        public override void TouchesEnded(NSSet touches, UIEvent e)
+        else if (evt?.AllTouches.Count >= 2)
         {
-            Refresh();
-        }
+            var previousLocation = evt.AllTouches.Select(t => ((UITouch)t).PreviousLocationInView(this))
+                .Select(p => new MPoint(p.X, p.Y)).ToList();
 
-        /// <summary>
-        /// Gets screen position in device independent units (or DIP or DP).
-        /// </summary>
-        /// <param name="point"></param>
-        /// <returns></returns>
-        private Point GetScreenPosition(CGPoint point)
-        {
-            return new Point(point.X, point.Y);
-        }
+            var locations = evt.AllTouches.Select(t => ((UITouch)t).LocationInView(this))
+                .Select(p => new MPoint(p.X, p.Y)).ToList();
 
-        private void RunOnUIThread(Action action)
-        {
-            DispatchQueue.MainQueue.DispatchAsync(action);
-        }
+            var (previousCenter, previousRadius, previousAngle) = GetPinchValues(previousLocation);
+            var (center, radius, angle) = GetPinchValues(locations);
 
-        public void RefreshGraphics()
-        {
-            RunOnUIThread(() =>
+            double rotationDelta = 0;
+
+            if (Map.Navigator.RotationLock == false)
             {
-                SetNeedsDisplay();
-                _canvas?.SetNeedsDisplay();
-            });
-        }
+                _virtualRotation += angle - previousAngle;
 
-        public override CGRect Frame
-        {
-            get => base.Frame;
-            set
-            {
-                _canvas.Frame = value;
-                base.Frame = value;
-                SetViewportSize();
-                OnPropertyChanged();
+                rotationDelta = RotationCalculations.CalculateRotationDeltaWithSnapping(
+                    _virtualRotation, Map.Navigator.Viewport.Rotation, _unSnapRotationDegrees, _reSnapRotationDegrees);
             }
+
+            Map.Navigator.Pinch(center, previousCenter, radius / previousRadius, rotationDelta);
         }
+    }
 
-        public override void LayoutMarginsDidChange()
+    public override void TouchesEnded(NSSet touches, UIEvent? e)
+    {
+        Refresh();
+    }
+
+    /// <summary>
+    /// Gets screen position in device independent units (or DIP or DP).
+    /// </summary>
+    /// <param name="point"></param>
+    /// <returns></returns>
+    private MPoint GetScreenPosition(CGPoint point)
+    {
+        return new MPoint(point.X, point.Y);
+    }
+
+    private void RunOnUIThread(Action action)
+    {
+        DispatchQueue.MainQueue.DispatchAsync(action);
+    }
+
+    public override CGRect Frame
+    {
+        get => base.Frame;
+        set
         {
-            if (_canvas == null) return;
+            InitCanvas();
+            if (UseGPU)
+            {
+                _glCanvas!.Frame = value;
+            }
+            else
+            {
+                _canvas!.Frame = value;
+            }
 
-            base.LayoutMarginsDidChange();
+            base.Frame = value;
             SetViewportSize();
+            OnPropertyChanged();
         }
+    }
 
-        public void OpenBrowser(string url)
-        {
-            UIApplication.SharedApplication.OpenUrl(new NSUrl(url));
-        }
+    public override void LayoutMarginsDidChange()
+    {
+        InitCanvas();
+        if (_glCanvas == null || _canvas == null) return;
 
-        public new void Dispose()
+        base.LayoutMarginsDidChange();
+        SetViewportSize();
+    }
+
+    public void OpenBrowser(string url)
+    {
+        UIApplication.SharedApplication.OpenUrl(new NSUrl(url));
+    }
+
+    public new void Dispose()
+    {
+        IosCommonDispose(true);
+        base.Dispose();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        IosCommonDispose(disposing);
+        base.Dispose(disposing);
+    }
+
+    private void IosCommonDispose(bool disposing)
+    {
+        if (disposing)
         {
+            _map?.Dispose();
             Unsubscribe();
-            base.Dispose();
+            _glCanvas?.Dispose();
+            _canvas?.Dispose();
         }
 
-        protected override void Dispose(bool disposing)
+        CommonDispose(disposing);
+    }
+
+    private static (MPoint centre, double radius, double angle) GetPinchValues(List<MPoint> locations)
+    {
+        if (locations.Count < 2)
+            throw new ArgumentException();
+
+        double centerX = 0;
+        double centerY = 0;
+
+        foreach (var location in locations)
         {
-            Unsubscribe();
-            base.Dispose(disposing);
+            centerX += location.X;
+            centerY += location.Y;
         }
 
-        private static (Point centre, double radius, double angle) GetPinchValues(List<Point> locations)
+        centerX = centerX / locations.Count;
+        centerY = centerY / locations.Count;
+
+        var radius = Algorithms.Distance(centerX, centerY, locations[0].X, locations[0].Y);
+
+        var angle = Math.Atan2(locations[1].Y - locations[0].Y, locations[1].X - locations[0].X) * 180.0 / Math.PI;
+
+        return (new MPoint(centerX, centerY), radius, angle);
+    }
+
+    private float ViewportWidth
+    {
+        get
         {
-            if (locations.Count < 2)
-                throw new ArgumentException();
-
-            double centerX = 0;
-            double centerY = 0;
-
-            foreach (var location in locations)
+            InitCanvas();
+            if (UseGPU)
             {
-                centerX += location.X;
-                centerY += location.Y;
+                return (float)_glCanvas!.Frame.Width;
             }
 
-            centerX = centerX / locations.Count;
-            centerY = centerY / locations.Count;
-
-            var radius = Algorithms.Distance(centerX, centerY, locations[0].X, locations[0].Y);
-
-            var angle = Math.Atan2(locations[1].Y - locations[0].Y, locations[1].X - locations[0].X) * 180.0 / Math.PI;
-
-            return (new Point(centerX, centerY), radius, angle);
+            return (float)_canvas!.Frame.Width;
+            // todo: check if we need _canvas
         }
+    }
 
-        private float ViewportWidth => (float) _canvas.Frame.Width; // todo: check if we need _canvas
-        private float ViewportHeight => (float) _canvas.Frame.Height; // todo: check if we need _canvas
-
-        private float GetPixelDensity()
+    private float ViewportHeight
+    {
+        get
         {
-            return (float) _canvas.ContentScaleFactor; // todo: Check if I need canvas        
+            InitCanvas();
+            if (UseGPU)
+            {
+                return (float)_glCanvas!.Frame.Height;
+            }
+
+            return (float)_canvas!.Frame.Height;
+            // todo: check if we need _canvas
         }
+    }
+
+    private float GetPixelDensity()
+    {
+        InitCanvas();
+        if (UseGPU)
+        {
+            return (float)_glCanvas!.ContentScaleFactor; // todo: Check if I need canvas    
+        }
+
+        return (float)_canvas!.ContentScaleFactor; // todo: Check if I need canvas
     }
 }

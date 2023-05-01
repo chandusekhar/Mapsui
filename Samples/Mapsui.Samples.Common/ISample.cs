@@ -1,11 +1,8 @@
-﻿using Mapsui.UI;
+using System.Threading.Tasks;
 
-namespace Mapsui.Samples.Common
+namespace Mapsui.Samples.Common;
+
+public interface ISample : ISampleBase
 {
-    public interface ISample
-    {
-        string Name { get; }
-        string Category { get; }
-        void Setup(IMapControl mapControl);
-    }
+    Task<Map> CreateMapAsync();
 }

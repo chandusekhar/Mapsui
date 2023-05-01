@@ -1,54 +1,51 @@
 ﻿using System.Collections.Generic;
-using Mapsui.Geometries;
-using Mapsui.Geometries.Utilities;
-using Mapsui.UI;
+using Mapsui.Nts.Extensions;
+using NetTopologySuite.Geometries;
+using Mapsui.Utilities;
 
-namespace Mapsui.Samples.Wpf.Editing.Editing
+namespace Mapsui.Samples.Wpf.Editing.Editing;
+
+public static class EditHelper
 {
-    public static class EditHelper
+    /// <summary>
+    /// Determines if a coordinate should be inserted into list of coordinates.        /// 
+    /// It fails if the distance of the location to the line is larger than the screenDistance.
+    /// </summary>
+    /// <param name="worldPosition">The position that should perhaps be inserted.</param>
+    /// <param name="resolution">The map resolution that is needed to calculte the distance.</param>
+    /// <param name="coordinates">The coordinates to insert into.</param>
+    /// <param name="screenDistance">The allowed screen distance. This value is determined by the
+    /// size of a symbol or the line width.</param>
+    /// <param name="segment">The segment to insert it at.</param>
+    /// <returns></returns>
+    public static bool ShouldInsert(MPoint worldPosition, double resolution, List<Coordinate> coordinates, double screenDistance, out int segment)
     {
-        /// <summary>
-        /// Inserts a vertex into a list of vertices at the location of the MapInfo location.
-        /// It fails if the distance of the location to the line is larger thatn the screenDistance.
-        /// </summary>
-        /// <param name="mapInfo">The MapInfo object that contains the location</param>
-        /// <param name="vertices">The list of vertices to insert into</param>
-        /// <param name="screenDistance"></param>
-        /// <returns></returns>
-        public static bool TryInsertVertex(MapInfo mapInfo, IList<Point> vertices, double screenDistance)
+        (var distance, segment) = GetDistanceAndSegment(worldPosition, coordinates);
+        return IsCloseEnough(distance, resolution, screenDistance);
+    }
+
+    private static bool IsCloseEnough(double distance, double resolution, double screenDistance)
+    {
+        return distance <= resolution * screenDistance;
+    }
+
+    private static (double Distance, int segment) GetDistanceAndSegment(MPoint point, IList<Coordinate> points)
+    {
+        // Move this to Mapsui
+
+        var minDist = double.MaxValue;
+        var segment = 0;
+
+        for (var i = 0; i < points.Count - 1; i++)
         {
-            var (distance, segment) = GetDistanceAndSegment(mapInfo.WorldPosition, vertices);
-            if (IsCloseEnough(distance, mapInfo.Resolution, screenDistance))
+            var dist = Algorithms.DistancePointLine(point, points[i].ToMPoint(), points[i + 1].ToMPoint());
+            if (dist < minDist)
             {
-                vertices.Insert(segment + 1, mapInfo.WorldPosition.Clone());
-                return true;
+                minDist = dist;
+                segment = i;
             }
-            return false;
         }
 
-        private static bool IsCloseEnough(double distance, double resolution, double screenDistance)
-        {
-            return distance <= resolution * screenDistance;
-        }
-
-        private static (double Distance, int segment) GetDistanceAndSegment(Point point, IList<Point> points)
-        {
-            // Move this to Mapsui
-
-            var minDist = double.MaxValue;
-            int segment = 0;
-
-            for (var i = 0; i < points.Count - 1; i++)
-            {
-                var dist = CGAlgorithms.DistancePointLine(point, points[i], points[i + 1]);
-                if (dist < minDist)
-                {
-                    minDist = dist;
-                    segment = i;
-                }
-            }
-
-            return (minDist, segment);
-        }
+        return (minDist, segment);
     }
 }

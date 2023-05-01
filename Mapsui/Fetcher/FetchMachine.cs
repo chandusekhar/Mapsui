@@ -1,33 +1,32 @@
 ﻿using System.Collections.Generic;
 
-namespace Mapsui.Fetcher
-{
-    class FetchMachine
-    {
-        private readonly List<FetchWorker> _worker = new List<FetchWorker>();
-        
-        public FetchMachine(IFetchDispatcher fetchDispatcher, int numberOfWorkers = 4)
-        {
-            for (int i = 0; i < numberOfWorkers; i++)
-            {
-                _worker.Add(new FetchWorker(fetchDispatcher));
-            }
-        }
+namespace Mapsui.Fetcher;
 
-        public void Start()
+public class FetchMachine // Todo: Make internal
+{
+    private readonly List<FetchWorker> _worker = new();
+
+    public FetchMachine(IFetchDispatcher fetchDispatcher, int numberOfWorkers = 4)
+    {
+        for (var i = 0; i < numberOfWorkers; i++)
         {
-            foreach (var worker in _worker)
-            {
-                worker.Start();
-            }
+            _worker.Add(new FetchWorker(fetchDispatcher));
         }
-        
-        public void Stop()
+    }
+
+    public void Start()
+    {
+        foreach (var worker in _worker)
         {
-            foreach (var worker in _worker)
-            {
-                worker.Stop();
-            }
+            worker.Start();
+        }
+    }
+
+    public void Stop()
+    {
+        foreach (var worker in _worker)
+        {
+            worker.Stop();
         }
     }
 }

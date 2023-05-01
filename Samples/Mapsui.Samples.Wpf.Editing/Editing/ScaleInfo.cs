@@ -1,12 +1,11 @@
-﻿using Mapsui.Geometries;
-using Mapsui.Providers;
+﻿using Mapsui.Nts;
+using NetTopologySuite.Geometries;
 
-namespace Mapsui.Samples.Wpf.Editing.Editing
+namespace Mapsui.Samples.Wpf.Editing.Editing;
+
+internal class ScaleInfo
 {
-    class ScaleInfo
-    {
-        public IFeature Feature { get; set; }
-        public Point PreviousPosition { get; set; }
-        public Point Center { get; set; }
-    }
+    public GeometryFeature? Feature { get; set; }
+    public Point? PreviousPosition { get; set; }
+    public Point? Center { get; set; }
 }

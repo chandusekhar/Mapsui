@@ -1,17 +1,12 @@
 ﻿using System;
 using System.ComponentModel;
-using Mapsui.Geometries;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 
-namespace Mapsui.Fetcher
+namespace Mapsui.Fetcher;
+
+public interface IFetchDispatcher // Todo: Make internal
 {
-    interface IFetchDispatcher
-    {
-        bool TryTake(ref Action method);
-        void SetViewport(BoundingBox extent, double resolution);
-
-        bool Busy { get; }
-        
-        event DataChangedEventHandler DataChanged;
-        event PropertyChangedEventHandler PropertyChanged;
-    }
+    bool TryTake([NotNullWhen(true)] out Func<Task>? method);
+    event PropertyChangedEventHandler PropertyChanged;
 }

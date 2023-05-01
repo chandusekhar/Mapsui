@@ -1,62 +1,60 @@
-// Copyright 2010 - Paul den Dulk (Geodan)
-//
-// This file is part of SharpMap.
-// Mapsui is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
-// 
-// SharpMap is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
+// Copyright (c) The Mapsui authors.
+// The Mapsui authors licensed this file under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-// You should have received a copy of the GNU Lesser General Public License
-// along with SharpMap; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
+// This file was originally created by Paul den Dulk (Geodan) as part of SharpMap
 
+using Mapsui.Layers;
 using System;
 
-namespace Mapsui.Fetcher
+namespace Mapsui.Fetcher;
+
+public interface IAsyncDataFetcher
 {
-    public interface IAsyncDataFetcher
+    /// <summary>
+    /// Aborts the tile fetches that are in progress. If this method is not called
+    /// the threads will terminate naturally. It will just take a little longer.
+    /// </summary>
+    void AbortFetch();
+
+    /// <summary>
+    /// Clear cache of layer
+    /// </summary>
+    void ClearCache();
+
+    /// <summary>
+    /// Indicates that there has been a change in the view of the map
+    /// </summary>
+    /// If Discrete an implementation should always refresh it's data. If Continuous the
+    /// implementation could ignore it. Example: During dragging a map a WMS layer would not want
+    /// to fetch data, only on the drag end.
+    /// <param name="fetchInfo">FetchInfo</param>
+    void RefreshData(FetchInfo fetchInfo);
+}
+
+public delegate void DataChangedEventHandler(object sender, DataChangedEventArgs e);
+
+public class DataChangedEventArgs : EventArgs
+{
+    public DataChangedEventArgs() : this(null, false, null)
     {
-        /// <summary>
-        /// Aborts the tile fetches that are in progress. If this method is not called
-        /// the threads will terminate naturally. It will just take a little longer.
-        /// </summary>
-        void AbortFetch();
-        
-        /// <summary>
-        /// Clear cache of layer
-        /// </summary>
-        void ClearCache();
     }
 
-    public delegate void DataChangedEventHandler(object sender, DataChangedEventArgs e);
-
-    public class DataChangedEventArgs : EventArgs
+    public DataChangedEventArgs(Exception? error, bool cancelled, object? info)
+        : this(error, cancelled, info, string.Empty)
     {
-        public DataChangedEventArgs() : this(null, false, null)
-        {
-        }
-
-        public DataChangedEventArgs(Exception error, bool cancelled, object info)
-            : this(error, cancelled, info, string.Empty)
-        {
-        }
-
-        public DataChangedEventArgs(Exception error, bool cancelled, object info, string layerName)
-        {
-            Error = error;
-            Cancelled = cancelled;
-            Info = info;
-            LayerName = layerName;
-        }
-
-        public Exception Error { get; }
-        public bool Cancelled { get; }
-        public object Info { get; }
-        public string LayerName { get; }
     }
+
+    public DataChangedEventArgs(Exception? error, bool cancelled, object? info, string layerName)
+    {
+        Error = error;
+        Cancelled = cancelled;
+        Info = info;
+        LayerName = layerName;
+    }
+
+    public Exception? Error { get; }
+    public bool Cancelled { get; }
+    public object? Info { get; }
+    public string LayerName { get; }
 }

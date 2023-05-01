@@ -1,29 +1,25 @@
-﻿using Mapsui.Geometries;
-using Mapsui.UI;
+﻿using Mapsui.Limiting;
 using NUnit.Framework;
 
-namespace Mapsui.Tests.UI
+namespace Mapsui.Tests.UI;
+
+[TestFixture]
+public class ViewportLimiterTests
 {
-    [TestFixture]
-    public class ViewportLimiterTests
+    [Test]
+    public void TestRestrictZoom()
     {
-        [Test]
-        public void TestRestrictZoom()
-        {
-            // arrange
-            var viewport = new Viewport { Center = new Point(0, 0), Width = 100, Height = 100, Resolution = 1};
-            // viewport.Center is (0, 0) at this point
-            var limiter = new ViewportLimiter
-            {
-                PanLimits = new BoundingBox(20, 40, 120, 140)  // Minimal X value is 20, Minimal Y value is 40
-            };
+        // arrange
+        var viewport = new Viewport(0, 0, 1, 0, 100, 100);
+        // viewport.Center is (0, 0) at this point
+        var limiter = new ViewportLimiter();
+        var panBounds = new MRect(20, 40, 120, 140);  // Minimal X value is 20, Minimal Y value is 40
+        
+        // act 
+        var result = limiter.Limit(viewport, panBounds, null);
 
-            // act 
-            limiter.LimitExtent(viewport, viewport.Extent);
-
-            // assert
-            Assert.AreEqual(viewport.Center.X, 20);
-            Assert.AreEqual(viewport.Center.Y, 40);
-        }
+        // assert
+        Assert.AreEqual(20, result.CenterX);
+        Assert.AreEqual(40, result.CenterY);
     }
 }
