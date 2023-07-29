@@ -6,13 +6,17 @@ using System.Threading.Tasks;
 using Mapsui.Extensions;
 using Mapsui.Layers;
 using Mapsui.Logging;
+using Mapsui.Nts.Widgets;
 using Mapsui.Rendering.Skia.Cache;
 using Mapsui.Rendering.Skia.Extensions;
 using Mapsui.Rendering.Skia.SkiaStyles;
 using Mapsui.Rendering.Skia.SkiaWidgets;
 using Mapsui.Styles;
 using Mapsui.Widgets;
+using Mapsui.Widgets.BoxWidget;
 using Mapsui.Widgets.ButtonWidget;
+using Mapsui.Widgets.MouseCoordinatesWidget;
+using Mapsui.Widgets.PerformanceWidget;
 using Mapsui.Widgets.ScaleBar;
 using Mapsui.Widgets.Zoom;
 using SkiaSharp;
@@ -46,10 +50,14 @@ public class MapRenderer : IRenderer
         StyleRenderers[typeof(SymbolStyle)] = new SymbolStyleRenderer();
         StyleRenderers[typeof(CalloutStyle)] = new CalloutStyleRenderer();
 
+        WidgetRenders[typeof(TextBox)] = new TextBoxWidgetRenderer();
         WidgetRenders[typeof(Hyperlink)] = new HyperlinkWidgetRenderer();
         WidgetRenders[typeof(ScaleBarWidget)] = new ScaleBarWidgetRenderer();
         WidgetRenders[typeof(ZoomInOutWidget)] = new ZoomInOutWidgetRenderer();
         WidgetRenders[typeof(ButtonWidget)] = new ButtonWidgetRenderer();
+        WidgetRenders[typeof(BoxWidget)] = new BoxWidgetRenderer();
+        WidgetRenders[typeof(MouseCoordinatesWidget)] = new MouseCoordinatesWidgetRenderer();
+        WidgetRenders[typeof(EditingWidget)] = new EditingWidgetRenderer();
     }
 
     public void Render(object target, Viewport viewport, IEnumerable<ILayer> layers,
@@ -161,12 +169,12 @@ public class MapRenderer : IRenderer
     private void RenderFeature(SKCanvas canvas, Viewport viewport, ILayer layer, IStyle style, IFeature feature, float layerOpacity, long iteration)
     {
         // Check, if we have a special renderer for this style
-        if (StyleRenderers.ContainsKey(style.GetType()))
+        if (StyleRenderers.TryGetValue(style.GetType(), out var renderer))
         {
             // Save canvas
             canvas.Save();
             // We have a special renderer, so try, if it could draw this
-            var styleRenderer = (ISkiaStyleRenderer)StyleRenderers[style.GetType()];
+            var styleRenderer = (ISkiaStyleRenderer)renderer;
             var result = styleRenderer.Draw(canvas, viewport, layer, feature, style, _renderCache, iteration);
             // Restore old canvas
             canvas.Restore();
@@ -187,9 +195,10 @@ public class MapRenderer : IRenderer
         // todo: use margin to increase the pixel area
         // todo: We will need to select on style instead of layer
 
-        layers = layers
+        var mapInfoLayers = layers
             .Select(l => (l is ISourceLayer sl) ? sl.SourceLayer : l)
-            .Where(l => l.IsMapInfoLayer);
+            .Where(l => l.IsMapInfoLayer)
+            .ToList();
 
         var list = new List<MapInfoRecord>();
         var result = new MapInfo
@@ -225,20 +234,27 @@ public class MapRenderer : IRenderer
                 var color = pixmap.GetPixelColor(intX, intY);
 
 
-                VisibleFeatureIterator.IterateLayers(viewport, layers, 0, (v, layer, style, feature, opacity, iteration) =>
+                VisibleFeatureIterator.IterateLayers(viewport, mapInfoLayers, 0, (v, layer, style, feature, opacity, iteration) =>
                 {
-                    // ReSharper disable AccessToDisposedClosure // There is no delayed fetch. After IterateLayers returns all is done. I do not see a problem.
-                    surface.Canvas.Save();
-                    // 1) Clear the entire bitmap
-                    surface.Canvas.Clear(SKColors.Transparent);
-                    // 2) Render the feature to the clean canvas
-                    RenderFeature(surface.Canvas, v, layer, style, feature, opacity, 0);
-                    // 3) Check if the pixel has changed.
-                    if (color != pixmap.GetPixelColor(intX, intY))
-                        // 4) Add feature and style to result
-                        list.Add(new MapInfoRecord(feature, style, layer));
-                    surface.Canvas.Restore();
-                    // ReSharper restore AccessToDisposedClosure
+                    try
+                    {
+                        // ReSharper disable AccessToDisposedClosure // There is no delayed fetch. After IterateLayers returns all is done. I do not see a problem.
+                        surface.Canvas.Save();
+                        // 1) Clear the entire bitmap
+                        surface.Canvas.Clear(SKColors.Transparent);
+                        // 2) Render the feature to the clean canvas
+                        RenderFeature(surface.Canvas, v, layer, style, feature, opacity, 0);
+                        // 3) Check if the pixel has changed.
+                        if (color != pixmap.GetPixelColor(intX, intY))
+                            // 4) Add feature and style to result
+                            list.Add(new MapInfoRecord(feature, style, layer));
+                        surface.Canvas.Restore();
+                        // ReSharper restore AccessToDisposedClosure
+                    }
+                    catch (Exception exception)
+                    {
+                        Logger.Log(LogLevel.Error, "Unexpected error in the code detecting if a feature is clicked. This uses SkiaSharp.", exception);
+                    }
                 });
             }
 

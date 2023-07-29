@@ -26,8 +26,11 @@ public enum SkiaRenderMode
 internal class MapControlGestureListener : GestureDetector.SimpleOnGestureListener
 {
     public EventHandler<GestureDetector.FlingEventArgs>? Fling;
-
+#if NET7_0_OR_GREATER
+    public override bool OnFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY)
+#else
     public override bool OnFling(MotionEvent? e1, MotionEvent? e2, float velocityX, float velocityY)
+#endif
     {
         if (Fling != null)
         {
@@ -134,7 +137,7 @@ public partial class MapControl : ViewGroup, IMapControl
             return;
 
         var position = GetScreenPosition(e.Event, this);
-        OnInfo(InvokeInfo(position, position, 2));
+        OnInfo(CreateMapInfoEventArgs(position, position, 2));
     }
 
     private void OnSingleTapped(object? sender, GestureDetector.SingleTapConfirmedEventArgs e)
@@ -143,7 +146,7 @@ public partial class MapControl : ViewGroup, IMapControl
             return;
 
         var position = GetScreenPosition(e.Event, this);
-        OnInfo(InvokeInfo(position, position, 1));
+        OnInfo(CreateMapInfoEventArgs(position, position, 1));
     }
 
     protected override void OnSizeChanged(int width, int height, int oldWidth, int oldHeight)
@@ -179,7 +182,7 @@ public partial class MapControl : ViewGroup, IMapControl
 
     public void MapView_Touch(object? sender, TouchEventArgs args)
     {
-        if (_gestureDetector?.OnTouchEvent(args.Event) ?? false)
+        if (args.Event != null && (_gestureDetector?.OnTouchEvent(args.Event) ?? false))
             return;
 
         var touchPoints = GetScreenPositions(args.Event, this);

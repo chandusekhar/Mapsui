@@ -168,6 +168,9 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private void MapControlMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (HandleTouching(e.GetPosition(this).ToMapsui(), true, e.ClickCount, ShiftPressed))
+            return;
+
         var touchPosition = e.GetPosition(this).ToMapsui();
         _previousMousePosition = touchPosition;
         _downMousePosition = touchPosition;
@@ -185,6 +188,8 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     private void MapControlMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         var mousePosition = e.GetPosition(this).ToMapsui();
+        if (HandleTouched(mousePosition, true, e.ClickCount, ShiftPressed))
+            return;
 
         if (_previousMousePosition != null)
         {
@@ -197,7 +202,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
             else if (_downMousePosition != null && IsClick(mousePosition, _downMousePosition))
             {
                 HandleFeatureInfo(e);
-                OnInfo(InvokeInfo(mousePosition, _downMousePosition, e.ClickCount));
+                OnInfo(CreateMapInfoEventArgs(mousePosition, _downMousePosition, e.ClickCount));
             }
         }
 
@@ -254,7 +259,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
             // todo: Pass the touchDown position. It needs to be set at touch down.
 
             // todo: Figure out how to do a number of taps for WPF
-            OnInfo(InvokeInfo(touchPosition, touchPosition, 1));
+            OnInfo(CreateMapInfoEventArgs(touchPosition, touchPosition, 1));
         }
     }
 
@@ -289,6 +294,9 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private void MapControlMouseMove(object sender, MouseEventArgs e)
     {
+        if (HandleMoving(e.GetPosition(this).ToMapsui(), e.LeftButton == MouseButtonState.Pressed, 0, ShiftPressed))
+            return;
+
         if (IsInBoxZoomMode())
         {
             DrawBbox(e.GetPosition(this));
@@ -460,4 +468,6 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         Dispose(true);
         GC.SuppressFinalize(this);
     }
+
+    public bool ShiftPressed => Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift);
 }

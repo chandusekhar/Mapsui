@@ -75,11 +75,14 @@ public class WFSProvider : IProvider, IDisposable
     private string? _sridOverride;
     private string? _proxyUrl;
     private ICredentials? _credentials;
+    private CrsAxisOrderRegistry _crsAxisOrderRegistry = new();
 
     // The type of geometry can be specified in case of unprecise information (e.g. 'GeometryAssociationType').
     // It helps to accelerate the rendering process significantly.
 
 
+    /// <summary> Default Cache </summary>
+    public static IUrlPersistentCache? DefaultCache { get; set; }
 
     /// <summary>
     /// This cache (obtained from an already instantiated dataprovider that retrieves a featuretype hosted by the same service) 
@@ -101,7 +104,7 @@ public class WFSProvider : IProvider, IDisposable
     /// </summary>
     /// <remarks>
     /// The axis order is an array of array offsets. It can be either {0, 1} or {1, 0}.
-    /// <para/>If not set explictly, <see cref="AxisOrderRegistry"/> is asked for a value based on <see cref="SRID"/>.</remarks>
+    /// <para/>If not set explictly, <see cref="CrsAxisOrderRegistry"/> is asked for a value based on <see cref="SRID"/>.</remarks>
     [AllowNull]
     public int[] AxisOrder
     {
@@ -109,7 +112,7 @@ public class WFSProvider : IProvider, IDisposable
             //https://docs.geoserver.org/stable/en/user/services/wfs/axis_order.html#wfs-basics-axis
             _axisOrder ?? (_wfsVersion == WFSVersionEnum.WFS_1_0_0
                 ? new[] { 0, 1 }
-                : new AxisOrderRegistry()[CRS ?? throw new ArgumentException("CRS needs to be set")]);
+                : _crsAxisOrderRegistry[CRS ?? throw new ArgumentException("CRS needs to be set")]);
         set
         {
             if (value != null)
@@ -218,7 +221,7 @@ public class WFSProvider : IProvider, IDisposable
         string? proxyUrl = null,
         ICredentials? credentials = null)
     {
-        var provider = new WFSProvider(getCapabilitiesUri, nsPrefix, featureType, geometryType, wfsVersion, persistentCache);
+        var provider = new WFSProvider(getCapabilitiesUri, nsPrefix, featureType, geometryType, wfsVersion, persistentCache ?? DefaultCache);
         if (!string.IsNullOrEmpty(proxyUrl))
         {
             provider.ProxyUrl = proxyUrl;
@@ -337,9 +340,10 @@ public class WFSProvider : IProvider, IDisposable
     /// <param name="featureTypeInfo">The featureTypeInfo Instance</param>
     /// <param name="wfsVersion">The desired WFS Server version.</param>
     /// <param name="persistentCache">Persistent Cache</param>
+    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP003:Dispose previous before re-assigning")]
     public WFSProvider(WfsFeatureTypeInfo featureTypeInfo, WFSVersionEnum wfsVersion, IUrlPersistentCache? persistentCache = null)
     {
-        _persistentCache = persistentCache;
+        _persistentCache = persistentCache ?? DefaultCache;
         _featureTypeInfo = featureTypeInfo;
 
         if (wfsVersion == WFSVersionEnum.WFS_1_0_0)
@@ -370,10 +374,11 @@ public class WFSProvider : IProvider, IDisposable
     /// <param name="featureType">The name of the feature type</param>
     /// <param name="wfsVersion">The desired WFS Server version.</param>
     /// <param name="persistentCache">Persistent Cache</param>
+    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP003:Dispose previous before re-assigning")]
     public WFSProvider(string serviceUri, string nsPrefix, string featureTypeNamespace, string featureType,
                string geometryName, GeometryTypeEnum geometryType, WFSVersionEnum wfsVersion, IUrlPersistentCache? persistentCache = null)
     {
-        _persistentCache = persistentCache;
+        _persistentCache = persistentCache ?? DefaultCache;
         _featureTypeInfo = new WfsFeatureTypeInfo(serviceUri, nsPrefix, featureTypeNamespace, featureType,
                                                   geometryName, geometryType);
 
@@ -426,10 +431,11 @@ public class WFSProvider : IProvider, IDisposable
     /// <param name="featureType">The name of the feature type</param>
     /// <param name="wfsVersion">The desired WFS Server version.</param>
     /// <param name="persistentCache">persistent Cache</param>
+    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP003:Dispose previous before re-assigning")]
     public WFSProvider(IXPathQueryManager getCapabilitiesCache, string nsPrefix, string featureType,
                GeometryTypeEnum geometryType, WFSVersionEnum wfsVersion, IUrlPersistentCache? persistentCache = null)
     {
-        _persistentCache = persistentCache;
+        _persistentCache = persistentCache ?? DefaultCache;
         _featureTypeInfoQueryManager = getCapabilitiesCache;
 
         if (wfsVersion == WFSVersionEnum.WFS_1_0_0)

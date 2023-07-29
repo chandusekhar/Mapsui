@@ -8,9 +8,7 @@ using Mapsui.Samples.Common.Utilities;
 using Mapsui.Styles;
 using Mapsui.Styles.Thematics;
 using Mapsui.Tiling.Layers;
-using Mapsui.UI;
 using System.IO;
-using System.Reflection;
 using System.Threading.Tasks;
 
 #pragma warning disable IDISP001 // Dispose created
@@ -38,7 +36,8 @@ public class RasterizingTileLayerWithRenderFormatSkpSample : ISample
     {
         var map = new Map();
 
-        var countrySource = new ShapeFile(ShapeFilesDeployer.ShapeFilesLocation + "\\countries.shp", true)
+        var shapeFileLocation = Path.Combine(ShapeFilesDeployer.ShapeFilesLocation, "countries.shp");
+        var countrySource = new ShapeFile(shapeFileLocation, true)
         {
             CRS = "EPSG:4326"
         };

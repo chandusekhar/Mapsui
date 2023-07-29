@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -16,6 +17,8 @@ using Mapsui.Widgets;
 
 #nullable enable
 #pragma warning disable IDISP008 // Don't assign member with injected and created disposables
+#pragma warning disable IDISP001 // Dispose created.
+#pragma warning disable IDISP002 // Dispose member.
 
 #if __MAUI__
 using Microsoft.Maui.Controls;
@@ -32,6 +35,8 @@ namespace Mapsui.UI.WinUI;
 namespace Mapsui.UI.Forms;
 #elif __AVALONIA__
 namespace Mapsui.UI.Avalonia;
+#elif __AVALONIA_V0__
+namespace Mapsui.UI.Avalonia.V0;
 #elif __ETO_FORMS__
 namespace Mapsui.UI.Eto;
 #elif __BLAZOR__
@@ -45,6 +50,8 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     private double _unSnapRotationDegrees;
     // Flag indicating if a drawing process is running
     private bool _drawing;
+    // Flag indicating if the control has to be redrawn
+    private bool _invalidated;
     // Flag indicating if a new drawing process should start
     private bool _refresh;
     // Action to call for a redraw of the control
@@ -55,6 +62,14 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     private int _updateInterval = 16;
     // Stopwatch for measuring drawing times
     private readonly System.Diagnostics.Stopwatch _stopwatch = new System.Diagnostics.Stopwatch();
+    // saving list of extended Widgets
+    private List<IWidgetExtended>? _extendedWidgets;
+    // saving list of touchable Widgets
+    private List<IWidget>? _touchableWidgets;
+    // keeps track of the widgets count to see if i need to recalculate the extended widgets.
+    private int _updateWidget = 0;
+    // keeps track of the widgets count to see if i need to recalculate the touchable widgets.
+    private int _updateTouchableWidget;
 
     private protected void CommonInitialize()
     {
@@ -92,6 +107,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
 
         // End drawing
         _drawing = false;
+        _invalidated = false;
     }
 
     private void InvalidateTimerCallback(object? state)
@@ -120,6 +136,12 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        if (_invalidated)
+        {
+            return;
+        }
+
+        _invalidated = true;
         _invalidate?.Invoke();
     }
 
@@ -155,6 +177,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     /// </remarks>
     public void ForceUpdate()
     {
+        _invalidated = true;
         _invalidate?.Invoke();
     }
 
@@ -329,36 +352,33 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
 
     private void Map_DataChanged(object? sender, DataChangedEventArgs? e)
     {
-        RunOnUIThread(() =>
+        try
         {
-            try
+            if (e == null)
             {
-                if (e == null)
-                {
-                    Logger.Log(LogLevel.Warning, "Unexpected error: DataChangedEventArgs can not be null");
-                }
-                else if (e.Cancelled)
-                {
-                    Logger.Log(LogLevel.Warning, "Fetching data was cancelled.");
-                }
-                else if (e.Error is WebException)
-                {
-                    Logger.Log(LogLevel.Warning, $"A WebException occurred. Do you have internet? Exception: {e.Error?.Message}", e.Error);
-                }
-                else if (e.Error != null)
-                {
-                    Logger.Log(LogLevel.Warning, $"An error occurred while fetching data. Exception: {e.Error?.Message}", e.Error);
-                }
-                else // no problems
-                {
-                    RefreshGraphics();
-                }
+                Logger.Log(LogLevel.Warning, "Unexpected error: DataChangedEventArgs can not be null");
             }
-            catch (Exception exception)
+            else if (e.Cancelled)
             {
-                Logger.Log(LogLevel.Warning, $"Unexpected exception in {nameof(Map_DataChanged)}", exception);
+                Logger.Log(LogLevel.Warning, "Fetching data was cancelled.");
             }
-        });
+            else if (e.Error is WebException)
+            {
+                Logger.Log(LogLevel.Warning, $"A WebException occurred. Do you have internet? Exception: {e.Error?.Message}", e.Error);
+            }
+            else if (e.Error != null)
+            {
+                Logger.Log(LogLevel.Warning, $"An error occurred while fetching data. Exception: {e.Error?.Message}", e.Error);
+            }
+            else // no problems
+            {
+                RefreshGraphics();
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.Log(LogLevel.Warning, $"Unexpected exception in {nameof(Map_DataChanged)}", exception);
+        }        
     }
     // ReSharper disable RedundantNameQualifier - needed for iOS for disambiguation
 
@@ -432,7 +452,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
 #else
 
     private Map _map = new Map();
-
+    
     /// <summary>
     /// Map holding data for which is shown in this MapControl
     /// </summary>
@@ -539,9 +559,9 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     /// <param name="startScreenPosition">Screen position of Viewport/MapControl</param>
     /// <param name="numTaps">Number of clickes/taps</param>
     /// <returns>True, if something done </returns>
-    private protected MapInfoEventArgs? InvokeInfo(MPoint? screenPosition, MPoint? startScreenPosition, int numTaps)
+    private protected MapInfoEventArgs? CreateMapInfoEventArgs(MPoint? screenPosition, MPoint? startScreenPosition, int numTaps)
     {
-        return InvokeInfo(
+        return CreateMapInfoEventArgs(
             Map?.GetWidgetsOfMapAndLayers() ?? new List<IWidget>(),
             screenPosition,
             startScreenPosition,
@@ -558,7 +578,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     /// <param name="widgetCallback">Callback, which is called when Widget is hit</param>
     /// <param name="numTaps">Number of clickes/taps</param>
     /// <returns>True, if something done </returns>
-    private MapInfoEventArgs? InvokeInfo(IEnumerable<IWidget> widgets, MPoint? screenPosition,
+    private MapInfoEventArgs? CreateMapInfoEventArgs(IEnumerable<IWidget> widgets, MPoint? screenPosition,
         MPoint? startScreenPosition, Func<IWidget, MPoint, bool> widgetCallback, int numTaps)
     {
         if (screenPosition == null || startScreenPosition == null)
@@ -614,5 +634,123 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
             _invalidateTimer?.Dispose();
         }
         _invalidateTimer = null;
+    }
+
+    private bool HandleMoving(MPoint position, bool leftButton, int clickCount, bool shift)
+    {
+        var extendedWidgets = GetExtendedWidgets();
+        if (extendedWidgets.Count == 0)
+            return false;
+        
+        var widgetArgs = new WidgetArgs(clickCount, leftButton, shift);
+        foreach (var extendedWidget in extendedWidgets)
+        {
+            if (extendedWidget.HandleWidgetMoving(Map.Navigator, position, widgetArgs))
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool HandleTouchingTouched(MPoint position, bool leftButton, int clickCount, bool shift)
+    {
+        if (HandleTouching(position, leftButton, clickCount, shift))
+        {
+            return true; 
+        }
+
+        if (HandleTouched(position, leftButton, clickCount, shift))
+        {
+            return true; 
+        }
+
+        return false;
+    }
+
+
+    private bool HandleTouching(MPoint position, bool leftButton, int clickCount, bool shift)
+    {
+        var extendedWidgets = GetExtendedWidgets();
+        if (extendedWidgets.Count == 0)
+            return false;
+
+        // Exit on Touchable Widgets or else the Button Handling for example does not work
+        // TODO: In the Next Mapsui Major Version handle Touch Events here
+        var touchableWidgets = GetTouchableWidgets();
+        var touchedWidgets = WidgetTouch.GetTouchedWidget(position, position, touchableWidgets);
+        if (touchedWidgets.Any())
+            return false;
+
+        var widgetArgs = new WidgetArgs(clickCount, leftButton, shift);
+        foreach (var extendedWidget in extendedWidgets)
+        {
+            if (extendedWidget.HandleWidgetTouching(Map.Navigator, position, widgetArgs))
+                return true;
+        }
+
+        return false;
+    }
+    
+    private bool HandleTouched(MPoint position, bool leftButton, int clickCount, bool shift)
+    {
+        var extendedWidgets = GetExtendedWidgets();
+        if (extendedWidgets.Count == 0)
+            return false;
+        
+        // Exit on Touchable Widgets or else the Button Handling for example does not work
+        // TODO: In the Next Mapsui Major Version handle Touch Events here
+        var touchableWidgets = GetTouchableWidgets();
+        var touchedWidgets = WidgetTouch.GetTouchedWidget(position, position, touchableWidgets);
+        if (touchedWidgets.Any())
+            return false;
+
+        var widgetArgs = new WidgetArgs(clickCount, leftButton, shift);
+        foreach (var extendedWidget in extendedWidgets)
+        {
+            if (extendedWidget.HandleWidgetTouched(Map.Navigator, position, widgetArgs))
+                return true;
+        }
+
+        return false;
+    }
+
+    private List<IWidgetExtended> GetExtendedWidgets()
+    {
+        if (_updateWidget != Map.Widgets.Count || _extendedWidgets == null)
+        {
+            _updateWidget = Map.Widgets.Count;
+            _extendedWidgets = new List<IWidgetExtended>();
+            var widgetsOfMapAndLayers = Map.GetWidgetsOfMapAndLayers().ToList();
+            foreach (var widget in widgetsOfMapAndLayers)
+            {
+                if (widget is IWidgetExtended extendedWidget)
+                {
+                    _extendedWidgets.Add(extendedWidget);
+                }
+            }
+        }
+
+        return _extendedWidgets;
+    }
+
+    private List<IWidget> GetTouchableWidgets()
+    {
+        if (_updateTouchableWidget != Map.Widgets.Count || _touchableWidgets == null)
+        {
+            _updateTouchableWidget = Map.Widgets.Count;
+            _touchableWidgets = new List<IWidget>();
+            var touchableWidgets = Map.GetWidgetsOfMapAndLayers().ToList();
+            foreach (var widget in touchableWidgets)
+            {
+                if (widget is IWidgetExtended)
+                    continue;
+
+                if (widget is IWidgetTouchable { Touchable: false }) continue;
+
+                _touchableWidgets.Add(widget);
+            }
+        }
+
+        return _touchableWidgets;
     }
 }

@@ -4,6 +4,7 @@ using SkiaSharp;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Mapsui.Layers;
@@ -41,6 +42,30 @@ namespace Mapsui.UI.Forms;
 /// </summary>
 public partial class MapControl : ContentView, IMapControl, IDisposable
 {
+    static MapControl()
+    {
+        try
+        {
+#if __MAUI__
+            Callout.DefaultTitleFontSize = 24;  // excplicit values from maui debugging
+            Callout.DefaultSubtitleFontSize = 20; // excplicit values from maui debugging
+#else
+            Callout.DefaultTitleFontSize = Device.GetNamedSize(NamedSize.Title, typeof(Label));
+            Callout.DefaultSubtitleFontSize = Device.GetNamedSize(NamedSize.Subtitle, typeof(Label));
+#endif
+        }
+        catch (Exception ex)
+        {
+            // Catch Xamarin Forms not initialized exception happens in unit tests.
+            Logger.Log(LogLevel.Error, ex.Message, ex);
+        }
+        
+#if __FORMS__
+        Callout.DefaultTitleFontName = Font.Default.FontFamily;
+        Callout.DefaultSubtitleFontName = Font.Default.FontFamily;
+#endif
+}
+
 #if __MAUI__
     // GPU does not work currently on MAUI
     // See https://github.com/mono/SkiaSharp/issues/1893
@@ -48,6 +73,7 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
     public static bool UseGPU = 
         DeviceInfo.Platform != DevicePlatform.WinUI && 
         DeviceInfo.Platform != DevicePlatform.macOS && 
+        DeviceInfo.Platform != DevicePlatform.MacCatalyst &&
         DeviceInfo.Platform != DevicePlatform.Android;
 #else
     public static bool UseGPU = true;
@@ -128,6 +154,7 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
     public bool UseFling = true;
 #if __MAUI__
     private Size oldSize;
+    private static List<WeakReference<MapControl>>? listeners;
 #endif
 
     private void Initialize()
@@ -173,11 +200,74 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
 #endif
 
         Content = view;
-
         BackgroundColor = KnownColor.White;
+        InitTouchesReset(this);
     }
 
+    private static void InitTouchesReset(MapControl mapControl)
+    {
 #if __MAUI__
+        try 
+        {   
+            if (listeners == null)
+            {
+                listeners = new List<WeakReference<MapControl>>();
+                if (Shell.Current != null)
+                {
+                    Shell.Current.PropertyChanged -= Shell_PropertyChanged;
+                    Shell.Current.PropertyChanged += Shell_PropertyChanged;
+                }
+            }
+
+            // remove dead references
+            foreach (var entry in listeners.ToArray())
+            {
+                if (!entry.TryGetTarget(out _))
+                {
+                    listeners.Remove(entry);
+                }
+            }
+            
+            // add control to listeners
+            listeners.Add(new WeakReference<MapControl>(mapControl));
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(LogLevel.Error, ex.Message, ex);
+        }
+     
+#endif
+    }
+
+#if __MAUI__    
+    private static void Shell_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        try
+        {
+            switch(e.PropertyName)
+            {
+                case nameof(Shell.FlyoutIsPresented):
+                    if (listeners != null)
+                        foreach (var entry in listeners.ToArray())
+                        {
+                            if (entry.TryGetTarget(out var control))
+                            {
+                                control.ClearTouchState();
+                            }
+                            else
+                            {
+                                listeners.Remove(entry);
+                            }
+                        }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(LogLevel.Error, ex.Message, ex);
+        }
+    }
+
     private void View_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
@@ -201,7 +291,7 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
 
     private void OnSizeChanged(object? sender, EventArgs e)
     {
-        _touches.Clear();
+        ClearTouchState();
         SetViewportSize();
     }
 
@@ -213,6 +303,11 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
             var ticks = DateTime.Now.Ticks;
 
             var location = GetScreenPosition(e.Location);
+            
+            if (HandleTouch(e, location))
+            {
+                return;
+            }
 
             // if user handles action by his own return
             TouchAction?.Invoke(sender, e);
@@ -241,14 +336,14 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
             // Delete e.Id from _touches, because finger is released
             else if (e.ActionType == SKTouchAction.Released && _touches.TryRemove(e.Id, out var releasedTouch))
             {
-                // Is this a fling or swipe?
                 if (_touches.Count == 0)
                 {
-                    double velocityX;
-                    double velocityY;
-
+                    // Is this a fling?
                     if (UseFling)
                     {
+                        double velocityX;
+                        double velocityY;
+
                         (velocityX, velocityY) = _flingTracker.CalcVelocity(e.Id, ticks);
 
                         if (Math.Abs(velocityX) > 200 || Math.Abs(velocityY) > 200)
@@ -348,6 +443,19 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
         }
     }
 
+    private bool HandleTouch(SKTouchEventArgs e, MPoint location)
+    {
+        return e.ActionType switch
+        {
+            SKTouchAction.Pressed when HandleTouching(location, true, Math.Max(1, _numOfTaps), ShiftPessed) => true,
+            SKTouchAction.Released when HandleTouched(location, true, 0, ShiftPessed) => true,
+            SKTouchAction.Moved when HandleMoving(location, true, Math.Max(1, _numOfTaps), ShiftPessed) => true,
+            _ => false
+        };
+    }
+    
+    public bool ShiftPessed { get; set; }
+
     private bool IsAround(TouchEvent releasedTouch)
     {
         if (_firstTouch == null) { return false; }
@@ -433,12 +541,7 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
     public event EventHandler<HoveredEventArgs>? Hovered;
 
     /// <summary>
-    /// Swipe is called, when user release mouse button or lift finger while moving with a certain speed 
-    /// </summary>
-    public event EventHandler<SwipedEventArgs>? Swipe;
-
-    /// <summary>
-    /// Fling is called, when user release mouse button or lift finger while moving with a certain speed, higher than speed of swipe 
+    /// Fling is called, when user release mouse button or lift finger while moving with a certain speed
     /// </summary>
     public event EventHandler<SwipedEventArgs>? Fling;
 
@@ -490,23 +593,6 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
         var args = new HoveredEventArgs(screenPosition);
 
         Hovered?.Invoke(this, args);
-
-        return args.Handled;
-    }
-
-    /// <summary>
-    /// Called, when mouse/finger/pen swiped over map
-    /// </summary>
-    /// <param name="velocityX">Velocity in x direction in pixel/second</param>
-    /// <param name="velocityY">Velocity in y direction in pixel/second</param>
-    private bool OnSwiped(double velocityX, double velocityY)
-    {
-        var args = new SwipedEventArgs(velocityX, velocityY);
-
-        Swipe?.Invoke(this, args);
-
-        // TODO
-        // Perform standard behavior
 
         return args.Handled;
     }
@@ -710,7 +796,7 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
         if (args.Handled)
             return true;
 
-        var eventReturn = InvokeInfo(screenPosition, screenPosition, numOfTaps);
+        var eventReturn = CreateMapInfoEventArgs(screenPosition, screenPosition, numOfTaps);
 
         if (eventReturn?.Handled == true)
             return true;
@@ -733,7 +819,7 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
         if (args.Handled)
             return true;
 
-        var infoToInvoke = InvokeInfo(screenPosition, screenPosition, 1);
+        var infoToInvoke = CreateMapInfoEventArgs(screenPosition, screenPosition, 1);
 
         if (infoToInvoke?.Handled == true)
             return true;
@@ -789,6 +875,14 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
         Launcher.OpenAsync(new Uri(url));
     }
 
+    /// <summary>
+    /// Clears the Touch State
+    /// </summary>
+    public void ClearTouchState()
+    {
+        _touches.Clear();
+    }
+
     protected void RunOnUIThread(Action action)
     {
 #if __MAUI__ 
@@ -806,6 +900,14 @@ public partial class MapControl : ContentView, IMapControl, IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
+#if __MAUI__
+        var weakReference = listeners?.FirstOrDefault(f => f.TryGetTarget(out var control) && control == this);
+        if (weakReference != null)
+        {
+            listeners?.Remove(weakReference);
+        }
+#endif
+
         if (disposing)
         {
             Map?.Dispose();
