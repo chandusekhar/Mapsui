@@ -171,17 +171,24 @@ public class EditManager
                 if (mapInfo.Feature is GeometryFeature geometryFeature)
                 {
                     var vertexTouched = FindVertexTouched(mapInfo, geometryFeature.Geometry?.MainCoordinates() ?? new List<Coordinate>(), screenDistance);
-                    if (vertexTouched != null)
+                    _dragInfo.Feature = geometryFeature;
+                    _dragInfo.Vertex = vertexTouched;
+                    if (mapInfo.WorldPosition != null)
                     {
-                        _dragInfo.Feature = geometryFeature;
-                        _dragInfo.Vertex = vertexTouched;
-                        if (mapInfo.WorldPosition != null && _dragInfo.Vertex != null)
+                        if (_dragInfo.Vertex != null)
                         {
+                            _dragInfo.DraggingFeature = false;
                             _dragInfo.StartOffsetToVertex = mapInfo.WorldPosition - _dragInfo.Vertex.ToMPoint();
                         }
-
-                        return true; // to indicate start of drag
+                        else if (_dragInfo.Feature != null && mapInfo.Feature.Extent != null)
+                        {
+                            _dragInfo.StartOffsetToVertex = mapInfo.WorldPosition - mapInfo.Feature.Extent.Centroid;
+                            _dragInfo.Vertex = mapInfo.Feature.Extent.Centroid.ToCoordinate();
+                            _dragInfo.DraggingFeature = true;
+                        }
                     }
+                  
+                    return true; // to indicate start of drag
                 }
             }
         }
@@ -190,21 +197,59 @@ public class EditManager
 
     public bool Dragging(Point? worldPosition)
     {
-        if (EditMode != EditMode.Modify || _dragInfo.Feature == null || worldPosition == null || _dragInfo.StartOffsetToVertex == null) return false;
+        if (EditMode != EditMode.Modify || _dragInfo.Feature == null || worldPosition == null || (_dragInfo.StartOffsetToVertex == null)) return false;
 
-        _dragInfo.Vertex.SetXY(worldPosition.ToMPoint() - _dragInfo.StartOffsetToVertex);
-
-        if (_dragInfo.Feature.Geometry is Polygon polygon) // Not this only works correctly it the feature is in the outer ring.
+        if (_dragInfo.Vertex != null)
         {
-            var count = polygon.ExteriorRing?.Coordinates.Length ?? 0;
-            var vertices = polygon.ExteriorRing?.Coordinates ?? Array.Empty<Coordinate>();
-            var index = vertices.ToList().IndexOf(_dragInfo.Vertex!);
-            if (index >= 0)
-                // It is a ring where the first should be the same as the last.
-                // So if the first was removed than set the last to the value of the new first
-                if (index == 0) vertices[count - 1].SetXY(vertices[0]);
-                // If the last was removed then set the first to the value of the new last
-                else if (index == vertices.Length) vertices[0].SetXY(vertices[count - 1]);
+            // only modify the vertex if it is not moving a feature
+            if (!_dragInfo.DraggingFeature)
+            {
+                _dragInfo.Vertex.SetXY(worldPosition.ToMPoint() - _dragInfo.StartOffsetToVertex);
+
+                if (_dragInfo.Feature
+                        .Geometry is Polygon
+                    polygon) // Not this only works correctly it the feature is in the outer ring.
+                {
+                    var count = polygon.ExteriorRing?.Coordinates.Length ?? 0;
+                    var vertices = polygon.ExteriorRing?.Coordinates ?? Array.Empty<Coordinate>();
+                    var index = vertices.ToList().IndexOf(_dragInfo.Vertex!);
+                    if (index >= 0)
+                        // It is a ring where the first should be the same as the last.
+                        // So if the first was removed than set the last to the value of the new first
+                        if (index == 0) vertices[count - 1].SetXY(vertices[0]);
+                        // If the last was removed then set the first to the value of the new last
+                        else if (index == vertices.Length) vertices[0].SetXY(vertices[count - 1]);
+                }
+            }
+            else // NEW: try to drag the whole feature when the position of dragging is inside the geometry
+            {
+                MPoint prevtx = _dragInfo.Vertex.ToMPoint(); // record the previous position
+                MPoint newvtx = worldPosition.ToMPoint() - _dragInfo.StartOffsetToVertex; // new position
+
+                if (_dragInfo.Feature.Geometry is Polygon polygon)
+                {
+                    var vertices = polygon.ExteriorRing?.Coordinates ?? Array.Empty<Coordinate>();
+                    foreach (Coordinate vtx in vertices) // modify every vertex on the ring
+                    {
+                        vtx.SetXY(vtx.ToMPoint() + (newvtx - prevtx)); // adding the offset
+                    }
+                }
+                else if (_dragInfo.Feature.Geometry is LineString lineString)
+                {
+                    var vertices = lineString.Coordinates ?? Array.Empty<Coordinate>();
+                    foreach (Coordinate vtx in vertices) // modify every vertex on the line
+                    {
+                        vtx.SetXY(vtx.ToMPoint() + (newvtx - prevtx)); // adding the offset
+                    }
+                }
+                else if (_dragInfo.Feature.Geometry is Point point)
+                {
+                    var vertice = point.Coordinate;
+                    vertice.SetXY(vertice.ToMPoint() + (newvtx - prevtx)); // adding the offset
+                }
+
+                _dragInfo.Vertex.SetXY(worldPosition.ToMPoint() - _dragInfo.StartOffsetToVertex);
+            }
         }
 
         _dragInfo.Feature.RenderedGeometry.Clear();

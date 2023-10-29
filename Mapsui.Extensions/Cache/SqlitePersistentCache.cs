@@ -2,7 +2,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
-using System.Security.AccessControl;
 using BruTile;
 using BruTile.Cache;
 using Mapsui.Cache;
@@ -256,9 +255,8 @@ public class SqlitePersistentCache : IPersistentCache<byte[]>, IUrlPersistentCac
 
         return (bytes, NoCompression);
     }
-
-    [return: NotNullIfNotNull("bytes")]
-    private static byte[]? Decompress(byte[]? bytes, string? compression)
+    
+    private byte[]? Decompress(byte[]? bytes, string? compression)
     {
         if (bytes == null || string.IsNullOrEmpty(compression) || string.Equals(compression, NoCompression, StringComparison.InvariantCultureIgnoreCase))
             return bytes;
@@ -267,14 +265,30 @@ public class SqlitePersistentCache : IPersistentCache<byte[]>, IUrlPersistentCac
         {
             case BrotliCompression:
                 {
-                    using var inputStream = new MemoryStream(bytes);
-                    using var outputStream = new MemoryStream();
-                    using (var decompressStream = new BrotliStream(inputStream, CompressionMode.Decompress))
+                    try
                     {
-                        decompressStream.CopyTo(outputStream);
+                        using var inputStream = new MemoryStream(bytes);
+                        using var outputStream = new MemoryStream();
+                        using (var decompressStream = new BrotliStream(inputStream, CompressionMode.Decompress))
+                        {
+                            decompressStream.CopyTo(outputStream);
+                        }
+
+                        return outputStream.ToArray();
+                    }
+                    catch (PlatformNotSupportedException)
+                    {
+                        // Ignore error and save uncompressed
+                        // and disable compression
+                        _compress = false;
+                    }
+                    catch (Exception ex)
+                    {
+                        // in wasm this seems to throw an exception
+                        Logger.Log(LogLevel.Error, ex.Message);
                     }
 
-                    return outputStream.ToArray();
+                    return null;
                 }
             default:
                 throw new NotImplementedException(compression);

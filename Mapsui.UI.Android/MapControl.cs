@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using Android.Content;
 using Android.Graphics;
 using Android.OS;
@@ -187,6 +183,11 @@ public partial class MapControl : ViewGroup, IMapControl
 
         var touchPoints = GetScreenPositions(args.Event, this);
 
+        if (touchPoints.Count > 0 && HandleTouch(args, touchPoints.First()))
+        {
+            return;
+        }
+
         switch (args.Event?.Action)
         {
             case MotionEventActions.Up:
@@ -273,6 +274,18 @@ public partial class MapControl : ViewGroup, IMapControl
                 }
                 break;
         }
+    }
+
+    private bool HandleTouch(TouchEventArgs e, MPoint location)
+    {
+        var action = e.Event?.Action;
+        return action switch
+        {
+            MotionEventActions.Down when HandleTouching(location, true, Math.Max(1, 0), false) => true,
+            MotionEventActions.Up when HandleTouched(location, true, 0, false) => true,
+            MotionEventActions.Move when HandleMoving(location, true, Math.Max(1, 0), false) => true,
+            _ => false
+        };
     }
 
     /// <summary>
