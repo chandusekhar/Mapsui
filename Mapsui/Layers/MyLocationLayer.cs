@@ -12,16 +12,16 @@ namespace Mapsui.Layers;
 /// A layer to display a symbol for own location
 /// </summary>
 /// <remarks>
-/// There are two different symbols for own loaction: one is used when there isn't a change in position (still),
+/// There are two different symbols for own location: one is used when there isn't a change in position (still),
 /// and one is used, if the position changes (moving).
 /// </remarks>
 public class MyLocationLayer : BaseLayer, IDisposable
 {
     private readonly Map _map;
-    private PointFeature _feature;
-    private SymbolStyle _locStyle;  // style for the location indicator
-    private SymbolStyle _dirStyle;  // style for the view-direction indicator
-    private CalloutStyle _coStyle;  // style for the callout
+    private readonly PointFeature _feature;
+    private readonly SymbolStyle _locStyle;  // style for the location indicator
+    private readonly SymbolStyle _dirStyle;  // style for the view-direction indicator
+    private readonly CalloutStyle _coStyle;  // style for the callout
 
     private static int _bitmapMovingId = -1;
     private static int _bitmapStillId = -1;
@@ -30,7 +30,7 @@ public class MyLocationLayer : BaseLayer, IDisposable
     private MPoint? _animationMyLocationStart;
     private MPoint? _animationMyLocationEnd;
 
-    private readonly ConcurrentHashSet<AnimationEntry<Map>> _animations = new();
+    private readonly ConcurrentHashSet<AnimationEntry<Map>> _animations = [];
     private readonly List<IFeature> _features;
     private AnimationEntry<Map>? _animationMyDirection;
     private AnimationEntry<Map>? _animationMyViewDirection;
@@ -60,7 +60,7 @@ public class MyLocationLayer : BaseLayer, IDisposable
     /// MyLocation is always in the center of the map
     /// </summary>
     public bool IsCentered
-    { 
+    {
         get => _isCentered;
         set
         {
@@ -112,7 +112,7 @@ public class MyLocationLayer : BaseLayer, IDisposable
     }
 
     /// <summary>
-    /// Show or hide a callout with further infos next to the MyLocation symbol.
+    /// Show or hide a callout with further info next to the MyLocation symbol.
     /// </summary>
     public bool ShowCallout
     {
@@ -146,7 +146,7 @@ public class MyLocationLayer : BaseLayer, IDisposable
     /// <param name="map">Map, to which this layer belongs</param>
     public MyLocationLayer(Map map)
     {
-        _map = map ?? throw new ArgumentNullException("Map shouldn't be null");
+        _map = map ?? throw new ArgumentNullException("Map shouldn't be null", nameof(map));
         _map.Info += HandleClicked;
 
         Enabled = true;
@@ -220,7 +220,7 @@ public class MyLocationLayer : BaseLayer, IDisposable
         _feature.Styles.Add(_locStyle);
         _feature.Styles.Add(_coStyle);
 
-        _features = new List<IFeature> { _feature };
+        _features = [_feature];
         Style = null;
     }
 
@@ -354,7 +354,7 @@ public class MyLocationLayer : BaseLayer, IDisposable
                             _locStyle.SymbolRotation = endRotation;
                             map.Refresh();
                         }
-                      
+
                         return new AnimationResult<Map>(map, false);
                     });
 
@@ -488,16 +488,6 @@ public class MyLocationLayer : BaseLayer, IDisposable
     public override IEnumerable<IFeature> GetFeatures(MRect box, double resolution)
     {
         return _features;
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _feature.Dispose();
-        }
-
-        base.Dispose(disposing);
     }
 
     private bool InternalUpdateMyLocation(MPoint newLocation)

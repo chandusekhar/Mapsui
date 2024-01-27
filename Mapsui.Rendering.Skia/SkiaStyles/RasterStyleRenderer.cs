@@ -22,28 +22,13 @@ public class RasterStyleRenderer : ISkiaStyleRenderer
             if (raster == null)
                 return false;
 
-            if (!(style is RasterStyle rasterStyle))
+            if (style is not RasterStyle)
                 return false;
 
-            rasterStyle.UpdateCache(currentIteration);
+            renderCache.TileCache.UpdateCache(currentIteration);
 
-            rasterStyle.TileCache.TryGetValue(raster, out var cachedBitmapInfo);
-            BitmapInfo? bitmapInfo = cachedBitmapInfo as BitmapInfo;
-            if (BitmapHelper.InvalidBitmapInfo(bitmapInfo))
-            {
-                bitmapInfo = BitmapHelper.LoadBitmap(raster.Data);
-                rasterStyle.TileCache[raster] = bitmapInfo;
-            }
-
-            if (BitmapHelper.InvalidBitmapInfo(bitmapInfo))
-            {
-                // remove invalid image from cache
-                rasterStyle.TileCache.Remove(raster);
+            if (renderCache.TileCache.GetOrCreate(raster, currentIteration) is not BitmapInfo bitmapInfo)
                 return false;
-            }
-
-            bitmapInfo.IterationUsed = currentIteration;
-            rasterStyle.TileCache[raster] = bitmapInfo;
 
             var extent = feature.Extent;
 

@@ -373,7 +373,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
                 //Use the spatial index to get a list of features whose BoundingBox intersects bbox
                 var objectList = GetObjectIDsInViewPrivate(bbox);
                 if (objectList.Count == 0) //no features found. Return an empty set
-                    return new Collection<Geometry>();
+                    return [];
 
                 var geometries = new Collection<Geometry>();
 
@@ -419,7 +419,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
     private Collection<uint> GetObjectIDsInViewPrivate(MRect? bbox)
     {
         if (bbox == null)
-            return new Collection<uint>();
+            return [];
         if (!_isOpen)
             throw new ApplicationException("An attempt was made to read from a closed data source");
         //Use the spatial index to get a list of features whose BoundingBox intersects bbox
@@ -452,8 +452,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
     {
         if (FilterDelegate != null) //Apply filtering
         {
-            using var fdr = GetFeature(oid);
-            return fdr?.Geometry;
+            return GetFeature(oid)?.Geometry;
         }
 
         return ReadGeometry(oid);
@@ -572,7 +571,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
     private int[] ReadIndex()
     {
         if (_brShapeIndex is null)
-            return Array.Empty<int>();
+            return [];
 
         var offsetOfRecord = new int[_featureCount];
         _brShapeIndex.BaseStream.Seek(100, 0); // Skip the header
@@ -603,7 +602,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
     ///</summary>
     /// <param name="i">Integer to swap</param>
     /// <returns>Byte Order swapped int32</returns>
-    private int SwapByteOrder(int i)
+    private static int SwapByteOrder(int i)
     {
         var buffer = BitConverter.GetBytes(i);
         Array.Reverse(buffer, 0, buffer.Length);
@@ -758,7 +757,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
             for (var i = 0; i < nPoints; i++)
                 points.Add(new Point(_brShapeFile.ReadDouble(), _brShapeFile.ReadDouble()));
 
-            return new MultiPoint(points.ToArray());
+            return new MultiPoint([.. points]);
         }
         if (_shapeType == ShapeType.PolyLine || _shapeType == ShapeType.Polygon ||
             _shapeType == ShapeType.PolyLineM || _shapeType == ShapeType.PolygonM ||
@@ -786,11 +785,11 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
                     var coordinates = new List<Coordinate>();
                     for (var i = segments[lineId]; i < segments[lineId + 1]; i++)
                         coordinates.Add(new Coordinate(_brShapeFile.ReadDouble(), _brShapeFile.ReadDouble()));
-                    lineStrings.Add(new LineString(coordinates.ToArray()));
+                    lineStrings.Add(new LineString([.. coordinates]));
                 }
                 if (lineStrings.Count == 1)
                     return lineStrings[0];
-                return new MultiLineString(lineStrings.ToArray());
+                return new MultiLineString([.. lineStrings]);
             }
             else
             {
@@ -801,7 +800,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
                     var ring = new List<Coordinate>();
                     for (var i = segments[ringId]; i < segments[ringId + 1]; i++)
                         ring.Add(new Coordinate(_brShapeFile.ReadDouble(), _brShapeFile.ReadDouble()));
-                    rings.Add(new LinearRing(ring.ToArray()));
+                    rings.Add(new LinearRing([.. ring]));
                 }
                 var isCounterClockWise = new bool[rings.Count];
                 var polygonCount = 0;
@@ -828,14 +827,14 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
                             // So the previous one is done and is added to the list. A new list of linear rings is created for the next polygon.
                             var p1 = CreatePolygon(linearRings);
                             if (p1 is not null) polygons.Add(p1);
-                            linearRings = new List<LinearRing> { rings[i] };
+                            linearRings = [rings[i]];
                         }
                         else
                             linearRings.Add(rings[i]);
                     var p = CreatePolygon(linearRings);
                     if (p is not null) polygons.Add(p);
 
-                    return new MultiPolygon(polygons.ToArray());
+                    return new MultiPolygon([.. polygons]);
                 }
             }
         }
@@ -858,7 +857,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
     /// <param name="rowId"></param>
     /// <param name="features">Data table to feature should belong to.</param>
     /// <returns></returns>
-    public GeometryFeature? GetFeature(uint rowId, List<GeometryFeature>? features = null)
+    public GeometryFeature? GetFeature(uint rowId)
     {
         lock (_syncRoot)
         {
@@ -866,7 +865,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
 
             try
             {
-                return GetFeaturePrivate(rowId, features);
+                return GetFeaturePrivate(rowId);
             }
             finally
             {
@@ -876,11 +875,11 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
 
     }
 
-    private GeometryFeature? GetFeaturePrivate(uint rowId, IEnumerable<GeometryFeature>? dt)
+    private GeometryFeature? GetFeaturePrivate(uint rowId)
     {
         if (_dbaseFile != null)
         {
-            var dr = _dbaseFile.GetFeature(rowId, dt ?? new List<GeometryFeature>());
+            var dr = _dbaseFile.GetFeature(rowId);
             if (dr != null)
             {
                 dr.Geometry = ReadGeometry(rowId);
@@ -892,8 +891,6 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
         throw new ApplicationException("An attempt was made to read DBase data from a shapefile without a valid .DBF file");
     }
 
-
-    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP001:Dispose created")]
     public Task<IEnumerable<IFeature>> GetFeaturesAsync(FetchInfo fetchInfo)
     {
         lock (_syncRoot)
@@ -907,7 +904,7 @@ public class ShapeFile : IProvider, IDisposable, IProviderExtended
 
                 foreach (var index in objectList)
                 {
-                    var feature = _dbaseFile?.GetFeature(index, features);
+                    var feature = _dbaseFile?.GetFeature(index);
                     if (feature != null)
                     {
                         feature.Geometry = ReadGeometry(index);

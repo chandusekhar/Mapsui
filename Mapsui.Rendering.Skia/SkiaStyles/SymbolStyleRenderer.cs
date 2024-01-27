@@ -8,6 +8,7 @@ using NetTopologySuite.Geometries;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Mapsui.Rendering.Skia;
 
@@ -15,21 +16,22 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
 {
     public bool Draw(SKCanvas canvas, Viewport viewport, ILayer layer, IFeature feature, IStyle style, IRenderCache renderCache, long iteration)
     {
+        var cache = (IRenderCache<SKPath, SKPaint>)renderCache;
         var symbolStyle = (SymbolStyle)style;
         switch (feature)
         {
             case PointFeature pointFeature:
-                DrawXY(canvas, viewport, layer, pointFeature.Point.X, pointFeature.Point.Y, symbolStyle, renderCache, feature);
+                DrawXY(canvas, viewport, layer, pointFeature.Point.X, pointFeature.Point.Y, symbolStyle, cache);
                 break;
             case GeometryFeature geometryFeature:
                 switch (geometryFeature.Geometry)
                 {
                     case GeometryCollection collection:
                         foreach (var point in GetPoints(collection))
-                            DrawXY(canvas, viewport, layer, point.X, point.Y, symbolStyle, renderCache, feature);
+                            DrawXY(canvas, viewport, layer, point.X, point.Y, symbolStyle, cache);
                         break;
                     case Point point:
-                        DrawXY(canvas, viewport, layer, point.X, point.Y, symbolStyle, renderCache, feature);
+                        DrawXY(canvas, viewport, layer, point.X, point.Y, symbolStyle, cache);
                         break;
                 }
                 break;
@@ -38,7 +40,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
         return true;
     }
 
-    private IEnumerable<Point> GetPoints(GeometryCollection geometryCollection)
+    private static IEnumerable<Point> GetPoints(GeometryCollection geometryCollection)
     {
         foreach (var geometry in geometryCollection)
         {
@@ -53,7 +55,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
         }
     }
 
-    private bool DrawXY(SKCanvas canvas, Viewport viewport, ILayer layer, double x, double y, SymbolStyle symbolStyle, IRenderCache renderCache, IFeature feature)
+    public static bool DrawXY(SKCanvas canvas, Viewport viewport, ILayer layer, double x, double y, SymbolStyle symbolStyle, IRenderCache<SKPath,SKPaint> renderCache)
     {
         if (symbolStyle.SymbolType == SymbolType.Image)
         {
@@ -79,8 +81,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
             return false;
 
         // Calc offset (relative or absolute)
-        var offsetX = symbolStyle.SymbolOffset.IsRelative ? bitmap.Width * symbolStyle.SymbolOffset.X : symbolStyle.SymbolOffset.X;
-        var offsetY = symbolStyle.SymbolOffset.IsRelative ? bitmap.Height * symbolStyle.SymbolOffset.Y : symbolStyle.SymbolOffset.Y;
+        var offset = symbolStyle.SymbolOffset.CalcOffset(bitmap.Width, bitmap.Height);
 
         var rotation = (float)symbolStyle.SymbolRotation;
         if (symbolStyle.RotateWithMap) rotation += (float)viewport.Rotation;
@@ -94,7 +95,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
                 BitmapRenderer.Draw(canvas, bitmap.Bitmap,
                     (float)destX, (float)destY,
                     rotation,
-                    (float)offsetX, (float)offsetY,
+                    (float)offset.X, (float)offset.Y,
                     opacity: opacity, scale: (float)symbolStyle.SymbolScale);
                 break;
             case BitmapType.Picture:
@@ -104,7 +105,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
                 PictureRenderer.Draw(canvas, bitmap.Picture,
                     (float)destX, (float)destY,
                     rotation,
-                    (float)offsetX, (float)offsetY,
+                    (float)offset.X, (float)offset.Y,
                     opacity: opacity, scale: (float)symbolStyle.SymbolScale, blendModeColor: symbolStyle.BlendModeColor);
                 break;
             case BitmapType.Svg:
@@ -116,7 +117,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
                 SvgRenderer.Draw(canvas, bitmap.Svg,
                     (float)destX, (float)destY,
                     rotation,
-                    (float)offsetX, (float)offsetY,
+                    (float)offset.X, (float)offset.Y,
                     opacity: opacity, scale: (float)symbolStyle.SymbolScale);
                 break;
             case BitmapType.Sprite:
@@ -134,7 +135,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
                     BitmapRenderer.Draw(canvas, skImage,
                         (float)destX, (float)destY,
                         rotation,
-                        (float)offsetX, (float)offsetY,
+                        (float)offset.X, (float)offset.Y,
                         opacity: opacity, scale: (float)symbolStyle.SymbolScale);
                 break;
         }
@@ -142,7 +143,7 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
         return true;
     }
 
-    public static bool DrawSymbol(SKCanvas canvas, Viewport viewport, ILayer layer, double x, double y, SymbolStyle symbolStyle, IVectorCache vectorCache)
+    private static bool DrawSymbol(SKCanvas canvas, Viewport viewport, ILayer layer, double x, double y, SymbolStyle symbolStyle, IVectorCache<SKPath, SKPaint> vectorCache)
     {
         var opacity = (float)(layer.Opacity * symbolStyle.Opacity);
 
@@ -152,10 +153,11 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
 
         canvas.Translate((float)destX, (float)destY);
         canvas.Scale((float)symbolStyle.SymbolScale, (float)symbolStyle.SymbolScale);
-        if (symbolStyle.SymbolOffset.IsRelative)
-            canvas.Translate((float)(SymbolStyle.DefaultWidth * symbolStyle.SymbolOffset.X), (float)(-SymbolStyle.DefaultWidth * symbolStyle.SymbolOffset.Y));
-        else
-            canvas.Translate((float)symbolStyle.SymbolOffset.X, (float)-symbolStyle.SymbolOffset.Y);
+
+        var offset = symbolStyle.SymbolOffset.CalcOffset(SymbolStyle.DefaultWidth, SymbolStyle.DefaultWidth);
+
+        canvas.Translate((float)offset.X, (float)-offset.Y);
+
         if (symbolStyle.SymbolRotation != 0)
         {
             var rotation = symbolStyle.SymbolRotation;
@@ -163,13 +165,19 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
             canvas.RotateDegrees((float)rotation);
         }
 
-        var linePaint = vectorCache.GetOrCreatePaint(symbolStyle.Outline, opacity, CreateLinePaint);
-        var fillPaint = vectorCache.GetOrCreatePaint(symbolStyle.Fill, opacity, CreateFillPaint);
-        var path = vectorCache.GetOrCreatePath(symbolStyle.SymbolType, CreatePath);
+        using var path = vectorCache.GetOrCreatePath(symbolStyle.SymbolType, CreatePath);
+        if (symbolStyle.Fill.IsVisible())
+        {
+            using var fillPaint = vectorCache.GetOrCreatePaint((symbolStyle.Fill!, opacity), CreateFillPaint);
+            canvas.DrawPath(path, fillPaint);
+        }
 
-        if (fillPaint != null && fillPaint.Color.Alpha != 0) canvas.DrawPath(path, fillPaint);
-        if (linePaint != null && linePaint.Color.Alpha != 0) canvas.DrawPath(path, linePaint);
-        
+        if (symbolStyle.Outline.IsVisible())
+        {
+            using var linePaint = vectorCache.GetOrCreatePaint((symbolStyle.Outline!, opacity), CreateLinePaint);
+            canvas.DrawPath(path, linePaint);
+        }
+
         canvas.Restore();
 
         return true;
@@ -194,15 +202,16 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
                 TrianglePath(skPath, 0, 0, width);
                 break;
             default: // Invalid value
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentException($"Unknown {nameof(SymbolType)} '{nameof(symbolType)}'");
         }
 
         return skPath;
     }
 
-    private static SKPaint? CreateLinePaint(Pen? outline, float opacity)
+    private static SKPaint CreateLinePaint((Pen outline, float opacity) valueTuple)
     {
-        if (outline is null) return null;
+        var outline = valueTuple.outline;
+        var opacity = valueTuple.opacity;
 
         return new SKPaint
         {
@@ -215,9 +224,10 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
         };
     }
 
-    private static SKPaint? CreateFillPaint(Brush? fill, float opacity)
+    private static SKPaint CreateFillPaint((Brush fill, float opacity) valueTuple)
     {
-        if (fill is null) return null;
+        var fill = valueTuple.fill;
+        var opacity = valueTuple.opacity;
 
         return new SKPaint
         {
@@ -289,18 +299,13 @@ public class SymbolStyleRenderer : ISkiaStyleRenderer, IFeatureSize
         size = Math.Max(size, SymbolStyle.DefaultWidth); // if defaultWith is larger take this.
 
         // Calc offset (relative or absolute)
-        var offsetX = symbolStyle.SymbolOffset.IsRelative
-            ? symbolSize.Width * symbolStyle.SymbolOffset.X
-            : symbolStyle.SymbolOffset.X;
-        var offsetY = symbolStyle.SymbolOffset.IsRelative
-            ? symbolSize.Height * symbolStyle.SymbolOffset.Y
-            : symbolStyle.SymbolOffset.Y;
+        var offset = symbolStyle.SymbolOffset.CalcOffset(symbolSize.Width, symbolSize.Height);
 
         // Pythagoras for maximal distance
-        var offset = Math.Sqrt(offsetX * offsetX + offsetY * offsetY);
+        var length = Math.Sqrt(offset.X * offset.X + offset.Y * offset.Y);
 
-        // add offset to size multiplied by two because the total size increased by the offset
-        size += (offset * 2);
+        // add length to size multiplied by two because the total size increased by the offset
+        size += (length * 2);
 
         return size;
     }

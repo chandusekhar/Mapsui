@@ -37,14 +37,14 @@ namespace Mapsui.Providers.Wms;
 /// and the WmsLayer will set the remaining BoundingBox property and proper requests that changes between the requests.
 /// See the example below.
 /// </remarks>
-public class WmsProvider : IProvider, IProjectingProvider
+public class WmsProvider : IProvider, IProjectingProvider, ILayerFeatureInfo
 {
     private string? _mimeType;
     private readonly Client? _wmsClient;
     private Func<string, Task<Stream>>? _getStreamAsync;
     private readonly IUrlPersistentCache? _persistentCache;
     private static int[]? _axisOrder;
-    private CrsAxisOrderRegistry _crsAxisOrderRegistry = new();
+    private readonly CrsAxisOrderRegistry _crsAxisOrderRegistry = new();
 
     public static IUrlPersistentCache? DefaultCache { get; set; }
 
@@ -65,7 +65,7 @@ public class WmsProvider : IProvider, IProjectingProvider
     public static async Task<WmsProvider> CreateAsync(string url, string? wmsVersion = null, Func<string, Task<Stream>>? getStreamAsync = null, IUrlPersistentCache? persistentCache = null, string? userAgent = null)
     {
         var client = await Client.CreateAsync(url, wmsVersion, getStreamAsync, persistentCache: persistentCache ?? DefaultCache, userAgent);
-        var provider = new WmsProvider(client, persistentCache: persistentCache?? DefaultCache)
+        var provider = new WmsProvider(client, persistentCache: persistentCache ?? DefaultCache)
         {
             UserAgent = userAgent
         };
@@ -216,12 +216,12 @@ public class WmsProvider : IProvider, IProjectingProvider
     /// <param name="layer"></param>
     /// <param name="name"></param>
     /// <returns></returns>
-    private bool LayerExists(Client.WmsServerLayer layer, string name)
+    private static bool LayerExists(Client.WmsServerLayer layer, string name)
     {
         return name == layer.Name || layer.ChildLayers.Any(childLayer => LayerExists(childLayer, name));
     }
 
-    private bool FindLayer(Client.WmsServerLayer layer, string name, out Client.WmsServerLayer result)
+    private static bool FindLayer(Client.WmsServerLayer layer, string name, out Client.WmsServerLayer result)
     {
         result = layer;
         if (name == layer.Name)
@@ -282,7 +282,7 @@ public class WmsProvider : IProvider, IProjectingProvider
     /// <param name="layer">layer</param>
     /// <param name="name">name of style</param>
     /// <returns>True of style exists</returns>
-    private bool StyleExists(Client.WmsServerLayer layer, string name)
+    private static bool StyleExists(Client.WmsServerLayer layer, string name)
     {
         if (layer.Style.Any(style => name == style.Name)) return true;
         return layer.ChildLayers.Any(childLayer => StyleExists(childLayer, name));
@@ -388,10 +388,10 @@ public class WmsProvider : IProvider, IProjectingProvider
     {
         var resource = GetPreferredMethod();
         var strReq = new StringBuilder(resource.OnlineResource);
-        if (!resource.OnlineResource?.Contains("?") ?? false)
-            strReq.Append("?");
+        if (!resource.OnlineResource?.Contains('?') ?? false)
+            strReq.Append('?');
         if (!strReq.ToString().EndsWith("&") && !strReq.ToString().EndsWith("?"))
-            strReq.Append("&");
+            strReq.Append('&');
         if (box != null)
         {
             var wmsVersion = "1.3.0";
@@ -440,7 +440,7 @@ public class WmsProvider : IProvider, IProjectingProvider
             var transVal = Transparent.Value ? "true" : "false";
             strReq.Append($"&TRANSPARENT={transVal}");
         }
-        
+
         strReq.Append("&Styles=");
         if (StylesList != null && StylesList.Count > 0)
         {
@@ -521,9 +521,25 @@ public class WmsProvider : IProvider, IProjectingProvider
         return _wmsClient.GetMapRequests[0];
     }
 
+    private Client.WmsOnlineResource GetInfoPreferredMethod()
+    {
+        if (_wmsClient == null || _wmsClient.GetFeatureInfoRequests == null)
+            throw new InvalidOperationException("Wms Client needs to be set");
+        //We prefer get. Seek for supported 'get' method
+        for (var i = 0; i < _wmsClient.GetFeatureInfoRequests.Length; i++)
+            if (string.Compare(_wmsClient.GetFeatureInfoRequests[i].Type, "GET", StringComparison.InvariantCultureIgnoreCase) == 0)
+                return _wmsClient.GetFeatureInfoRequests[i];
+        //Next we prefer the 'post' method
+        for (var i = 0; i < _wmsClient.GetFeatureInfoRequests.Length; i++)
+            if (string.Compare(_wmsClient.GetFeatureInfoRequests[i].Type, "POST", StringComparison.InvariantCultureIgnoreCase) == 0)
+                return _wmsClient.GetFeatureInfoRequests[i];
+        return _wmsClient.GetFeatureInfoRequests[0];
+    }
+
     public Dictionary<string, string>? ExtraParams { get; set; }
 
     public string? CRS { get; set; }
+
     public string? UserAgent { get; set; }
 
     public MRect? GetExtent()
@@ -569,11 +585,11 @@ public class WmsProvider : IProvider, IProjectingProvider
         {
             // Ignore not supported exception (fixes blazor)
         }
-           
+
         var client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(TimeOut) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent ?? "If you use Mapsui please specify a user-agent specific to your app");
         var req = new HttpRequestMessage(new HttpMethod(GetPreferredMethod().Type?.ToUpper() ?? "GET"), url);
-        var response = await client.SendAsync(req);
+        var response = await client.SendAsync(req).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -586,5 +602,66 @@ public class WmsProvider : IProvider, IProjectingProvider
         }
 
         return await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+    }
+
+    public async Task<IDictionary<string, IEnumerable<IFeature>>> GetFeatureInfoAsync(Viewport viewport, double screenX, double screenY)
+    {
+        IDictionary<string, IEnumerable<IFeature>> result = new Dictionary<string, IEnumerable<IFeature>>();
+        var getFeatureInfo = new GetFeatureInfo
+        {
+            Credentials = Credentials,
+            TimeOut = TimeOut,
+            ExtraParams = ExtraParams,
+            UserAgent = UserAgent,
+        };
+
+        var resource = GetInfoPreferredMethod();
+
+        var wmsVersion = _wmsClient?.WmsVersion ?? "1.3.0";
+        var srs = CRS;
+        var layer = _wmsClient?.Layer.Name ?? LayerList?.FirstOrDefault() ?? string.Empty;
+        var infoFormat = GetFeatureInfoFormat();
+
+        var halfSymbolSize = 1.0 / 2.0; // 1 pixel size
+        var point = viewport.ScreenToWorld(screenX, screenY);
+        var minPoint = viewport.ScreenToWorld(screenX - halfSymbolSize, screenY - halfSymbolSize);
+        var maxPoint = viewport.ScreenToWorld(screenX + halfSymbolSize, screenY + halfSymbolSize);
+
+        var extent = new MRect(minPoint.X, minPoint.Y, maxPoint.X, maxPoint.Y);
+        var featureInfo = await getFeatureInfo.RequestAsync(resource.OnlineResource!, wmsVersion!, infoFormat, srs!, layer!, extent.MinX, extent.MinY, extent.MaxX, extent.MaxY, (int)screenX, (int)screenY, (int)viewport.Width, (int)viewport.Height).ConfigureAwait(false);
+        if (featureInfo != null)
+        {
+            if (featureInfo.LayerName != null)
+            {
+                var feature = new PointFeature(point);
+                if (featureInfo.FeatureInfos != null)
+                {
+                    foreach (var it in featureInfo.FeatureInfos)
+                    {
+                        foreach (var itKey in it)
+                        {
+                            feature[itKey.Key] = itKey.Value;
+                        }
+                    }
+                }
+
+                result[featureInfo.LayerName] = new List<IFeature>() { feature };
+            }
+
+        }
+
+
+        return result;
+    }
+
+    private string GetFeatureInfoFormat()
+    {
+        var result = _wmsClient?.GetFeatureInfoOutputFormats?.FirstOrDefault(f => f.Equals(GetFeatureInfo.ApplicationVndOGCGml, StringComparison.InvariantCultureIgnoreCase)) ??
+                     _wmsClient?.GetFeatureInfoOutputFormats?.FirstOrDefault(f => f.Equals(GetFeatureInfo.TextXmlSubtypeGml, StringComparison.InvariantCultureIgnoreCase)) ??
+                     _wmsClient?.GetFeatureInfoOutputFormats?.FirstOrDefault(f => f.Equals(GetFeatureInfo.TextXml, StringComparison.InvariantCultureIgnoreCase));
+
+        result ??= "text/xml";
+
+        return result;
     }
 }

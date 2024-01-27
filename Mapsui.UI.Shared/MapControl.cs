@@ -1,25 +1,22 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Net;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using Mapsui.Extensions;
 using Mapsui.Fetcher;
 using Mapsui.Layers;
 using Mapsui.Logging;
 using Mapsui.Rendering;
 using Mapsui.Rendering.Skia;
+using Mapsui.Styles;
 using Mapsui.Utilities;
 using Mapsui.Widgets;
-
-#nullable enable
-#pragma warning disable IDISP008 // Don't assign member with injected and created disposables
-#pragma warning disable IDISP001 // Dispose created.
-#pragma warning disable IDISP002 // Dispose member.
+using Mapsui.Widgets.ButtonWidgets;
+using Mapsui.Widgets.InfoWidgets;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Net;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 #if __MAUI__
 using Microsoft.Maui.Controls;
@@ -28,17 +25,17 @@ namespace Mapsui.UI.Maui;
 namespace Mapsui.UI.Uwp;
 #elif __ANDROID__ && !HAS_UNO_WINUI
 namespace Mapsui.UI.Android;
-#elif __IOS__ && !HAS_UNO_WINUI && !__FORMS__
+#elif __IOS__ && !HAS_UNO_WINUI
 namespace Mapsui.UI.iOS;
 #elif __WINUI__
 namespace Mapsui.UI.WinUI;
-#elif __FORMS__
-namespace Mapsui.UI.Forms;
 #elif __AVALONIA__
 namespace Mapsui.UI.Avalonia;
 #elif __ETO_FORMS__
 namespace Mapsui.UI.Eto;
 #elif __BLAZOR__
+using System.Diagnostics.CodeAnalysis;
+
 namespace Mapsui.UI.Blazor;
 #else
 namespace Mapsui.UI.Wpf;
@@ -56,29 +53,27 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     // Action to call for a redraw of the control
     private protected Action? _invalidate;
     // Timer for loop to invalidating the control
-    private System.Threading.Timer? _invalidateTimer;
+    private Timer? _invalidateTimer;
     // Interval between two calls of the invalidate function in ms
     private int _updateInterval = 16;
     // Stopwatch for measuring drawing times
-    private readonly System.Diagnostics.Stopwatch _stopwatch = new System.Diagnostics.Stopwatch();
-    // saving list of extended Widgets
-    private List<IWidgetExtended>? _extendedWidgets;
+    private readonly System.Diagnostics.Stopwatch _stopwatch = new();
     // old widget Collection to compare if widget Collection was changed.
     private ConcurrentQueue<IWidget>? _widgetCollection;
     // saving list of touchable Widgets
-    private List<IWidget>? _touchableWidgets;
+    private List<ITouchableWidget>? _touchableWidgets;
     // keeps track of the widgets count to see if i need to recalculate the extended widgets.
     private int _updateWidget = 0;
     // keeps track of the widgets count to see if i need to recalculate the touchable widgets.
     private int _updateTouchableWidget;
 
-    private protected void CommonInitialize()
+    private void CommonInitialize()
     {
         // Create map
         Map = new Map();
         // Create timer for invalidating the control
         _invalidateTimer?.Dispose();
-        _invalidateTimer = new System.Threading.Timer(InvalidateTimerCallback, null, System.Threading.Timeout.Infinite, 16);
+        _invalidateTimer = new Timer(InvalidateTimerCallback, null, Timeout.Infinite, 16);
         // Start the invalidation timer
         StartUpdates(false);
     }
@@ -129,6 +124,10 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
             if (Map?.Navigator?.UpdateAnimations() ?? false)
                 _refresh = true;
 
+            // Check if widgets need refresh
+            if (!_refresh && (Map?.Widgets?.Any(w => w.NeedsRedraw) ?? false))
+                _refresh = true;
+
             if (!_refresh)
                 return;
 
@@ -175,7 +174,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     /// </remarks>
     public void StopUpdates()
     {
-        _invalidateTimer?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+        _invalidateTimer?.Change(Timeout.Infinite, Timeout.Infinite);
     }
 
     /// <summary>
@@ -199,7 +198,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         set
         {
             if (value <= 0)
-                throw new ArgumentOutOfRangeException($"{nameof(UpdateInterval)} must be greater than 0");
+                throw new ArgumentOutOfRangeException(nameof(UpdateInterval), value, "Parameter must be greater than zero");
 
             if (_updateInterval != value)
             {
@@ -264,26 +263,14 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public float PixelDensity => GetPixelDensity();
+    public float PixelDensity => (float)GetPixelDensity();
 
-    private IRenderer _renderer = new MapRenderer();
+    private readonly IRenderer _renderer = new MapRenderer();
 
     /// <summary>
     /// Renderer that is used from this MapControl
     /// </summary>
-    public IRenderer Renderer
-    {
-        get => _renderer;
-        set
-        {
-            if (value is null) throw new NullReferenceException(nameof(Renderer));
-            if (_renderer != value)
-            {
-                _renderer = value;
-                OnPropertyChanged();
-            }
-        }
-    }
+    public IRenderer Renderer => _renderer;
 
     /// <summary>
     /// Called whenever the map is clicked. The MapInfoEventArgs contain the features that were hit in
@@ -294,13 +281,13 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// Called whenever a property is changed
     /// </summary>
-#if __FORMS__ || __MAUI__ || __AVALONIA__ || __AVALONIA_V0__
+#if __MAUI__ || __AVALONIA__
     public new event PropertyChangedEventHandler? PropertyChanged;
 #else
     public event PropertyChangedEventHandler? PropertyChanged;
 #endif
 
-#if __FORMS__ || __MAUI__
+#if __MAUI__
     protected override void OnPropertyChanged([CallerMemberName] string propertyName = "")
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -330,6 +317,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         map.PropertyChanged += Map_PropertyChanged;
         map.RefreshGraphicsRequest += Map_RefreshGraphicsRequest;
     }
+
 
     private void Map_RefreshGraphicsRequest(object? sender, EventArgs e)
     {
@@ -387,7 +375,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         catch (Exception exception)
         {
             Logger.Log(LogLevel.Warning, $"Unexpected exception in {nameof(Map_DataChanged)}", exception);
-        }        
+        }
     }
     // ReSharper disable RedundantNameQualifier - needed for iOS for disambiguation
 
@@ -411,25 +399,14 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         }
         else if (e.PropertyName == nameof(Map.Extent))
         {
-            CallHomeIfNeeded();
             Refresh();
         }
         else if (e.PropertyName == nameof(Map.Layers))
         {
-            CallHomeIfNeeded();
             Refresh();
         }
     }
     // ReSharper restore RedundantNameQualifier
-
-    public void CallHomeIfNeeded()
-    {
-        if (!Map.HomeIsCalledOnce && Map.Navigator.Viewport.HasSize() && Map?.Extent is not null)
-        {
-            Map.Home?.Invoke(Map.Navigator);
-            Map.HomeIsCalledOnce = true;
-        }
-    }
 
 #if __MAUI__
 
@@ -460,8 +437,8 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
 
 #else
 
-    private Map _map = new Map();
-    
+    private Map _map = new();
+
     /// <summary>
     /// Map holding data for which is shown in this MapControl
     /// </summary>
@@ -497,7 +474,6 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
 
         map.Navigator.SetSize(ViewportWidth, ViewportHeight);
         SubscribeToMapEvents(map);
-        CallHomeIfNeeded();
         Refresh();
     }
 
@@ -523,7 +499,7 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         Map.RefreshData(changeType);
     }
 
-    private protected void OnInfo(MapInfoEventArgs? mapInfoEventArgs)
+    private void OnInfo(MapInfoEventArgs? mapInfoEventArgs)
     {
         if (mapInfoEventArgs == null) return;
 
@@ -537,13 +513,13 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         if (screenPosition == null)
             return null;
 
-        return Renderer?.GetMapInfo(screenPosition.X, screenPosition.Y, Map.Navigator.Viewport, Map?.Layers ?? new LayerCollection(), margin);
+        return Renderer?.GetMapInfo(screenPosition.X, screenPosition.Y, Map.Navigator.Viewport, Map?.Layers ?? [], margin);
     }
 
     /// <inheritdoc />
     public byte[] GetSnapshot(IEnumerable<ILayer>? layers = null)
     {
-        using var stream = Renderer.RenderToBitmapStream(Map.Navigator.Viewport, layers ?? Map?.Layers ?? new LayerCollection(), pixelDensity: PixelDensity);
+        using var stream = Renderer.RenderToBitmapStream(Map.Navigator.Viewport, layers ?? Map?.Layers ?? [], pixelDensity: PixelDensity);
         return stream.ToArray();
     }
 
@@ -552,18 +528,18 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
     /// </summary>
     /// <param name="screenPosition">Screen position to check for widgets and features</param>
     /// <param name="startScreenPosition">Screen position of Viewport/MapControl</param>
-    /// <param name="numTaps">Number of clickes/taps</param>
+    /// <param name="numTaps">Number of clicks/taps</param>
     /// <returns>True, if something done </returns>
     private MapInfoEventArgs? CreateMapInfoEventArgs(
         MPoint? screenPosition,
-        MPoint? startScreenPosition, 
+        MPoint? startScreenPosition,
         int numTaps)
     {
         if (screenPosition == null || startScreenPosition == null)
             return null;
 
         // Check which features in the map were tapped.
-        var mapInfo = Renderer?.GetMapInfo(screenPosition.X, screenPosition.Y, Map.Navigator.Viewport, Map?.Layers ?? new LayerCollection());
+        var mapInfo = Renderer?.GetMapInfo(screenPosition.X, screenPosition.Y, Map.Navigator.Viewport, Map?.Layers ?? []);
 
         if (mapInfo != null)
         {
@@ -578,127 +554,108 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         return null;
     }
 
-    private protected void SetViewportSize()
+    private void SetViewportSize()
     {
         var hadSize = Map.Navigator.Viewport.HasSize();
         Map.Navigator.SetSize(ViewportWidth, ViewportHeight);
         if (!hadSize && Map.Navigator.Viewport.HasSize()) Map.OnViewportSizeInitialized();
-        CallHomeIfNeeded();
         Refresh();
     }
 
-    private protected void CommonDispose(bool disposing)
+    private void CommonDispose(bool disposing)
     {
         if (disposing)
         {
             Unsubscribe();
             StopUpdates();
             _invalidateTimer?.Dispose();
+            _renderer.Dispose();
         }
         _invalidateTimer = null;
     }
 
-    private bool HandleMoving(MPoint position, bool leftButton, int clickCount, bool shift)
+    private bool HandleWidgetPointerMove(MPoint position, bool leftButton, int clickCount, bool shift)
     {
-        var extendedWidgets = GetExtendedWidgets();
-        if (extendedWidgets.Count == 0)
+        var touchableWidgets = GetTouchableWidgets();
+
+        if (touchableWidgets.Count == 0)
             return false;
-        
-        var widgetArgs = new WidgetArgs(clickCount, leftButton, shift);
-        foreach (var extendedWidget in extendedWidgets)
+
+        var widgetArgs = new WidgetTouchedEventArgs(position, clickCount, leftButton, shift);
+
+        foreach (var widget in touchableWidgets)
         {
-            if (extendedWidget.HandleWidgetMoving(Map.Navigator, position, widgetArgs))
+            if (widget.HandleWidgetMoving(Map.Navigator, position, widgetArgs))
                 return true;
         }
 
         return false;
     }
 
-    private bool HandleTouchingTouched(MPoint position, bool leftButton, int clickCount, bool shift)
+    private bool HandleTouchingTouched(MPoint position, MPoint? startPosition, bool leftButton, int clickCount, bool shift)
     {
-        bool result = HandleTouching(position, leftButton, clickCount, shift);
+        bool result = HandleWidgetPointerDown(position, leftButton, clickCount, shift);
 
-        if (HandleTouched(position, leftButton, clickCount, shift))
+        if (HandleWidgetPointerUp(position, startPosition, leftButton, clickCount, shift))
         {
-            result = true; 
+            result = true;
         }
 
         return result;
     }
 
 
-    private bool HandleTouching(MPoint position, bool leftButton, int clickCount, bool shift)
+    private bool HandleWidgetPointerDown(MPoint position, bool leftButton, int clickCount, bool shift)
     {
         var touchableWidgets = GetTouchableWidgets();
-        var touchedWidgets = WidgetTouch.GetTouchedWidget(position, position, touchableWidgets);
+
+        if (touchableWidgets.Count == 0)
+            return false;
+
+        var touchedWidgets = WidgetTouch.GetTouchedWidgets(position, position, touchableWidgets);
 
         foreach (var widget in touchedWidgets)
         {
-            if (widget is IWidgetExtended extendedWidget)
+            var widgetArgs = new WidgetTouchedEventArgs(position, clickCount, leftButton, shift);
+            if (widget.HandleWidgetTouching(Map.Navigator, position, widgetArgs))
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool HandleWidgetPointerUp(MPoint position, MPoint? startPosition, bool leftButton, int clickCount, bool shift)
+    {
+        if (startPosition is null)
+        {
+            Logger.Log(LogLevel.Error, $"The '{nameof(startPosition)}' is null on release. This is not expected");
+            return false;
+        }
+        var touchableWidgets = GetTouchableWidgets();
+
+        if (touchableWidgets.Count == 0)
+            return false;
+
+        var touchedWidgets = WidgetTouch.GetTouchedWidgets(position, position, touchableWidgets);
+
+        foreach (var widget in touchedWidgets)
+        {
+            if (widget is HyperlinkWidget hyperlink && !string.IsNullOrWhiteSpace(hyperlink.Url))
             {
-                var widgetArgs = new WidgetArgs(clickCount, leftButton, shift);
-                if (extendedWidget.HandleWidgetTouching(Map.Navigator, position, widgetArgs))
-                    return true;
-            }
-            else
-            {
-                // Handle the touched avoid duplicated touched events
+                // The HyperLink is a special case because we need platform specific code to open the
+                // link in a browswer. If the link is not handled within the widget we handle it
+                // here and return true to indicate this is handled.
+                OpenBrowser(hyperlink.Url!);
                 return true;
             }
+
+            var args = new WidgetTouchedEventArgs(position, clickCount, leftButton, shift);
+
+            if (widget.HandleWidgetTouched(Map.Navigator, position, args))
+                return true;
         }
 
         return false;
-    }
-    
-    private bool HandleTouched(MPoint position, bool leftButton, int clickCount, bool shift)
-    {
-        var touchableWidgets = GetTouchableWidgets();
-        var touchedWidgets = WidgetTouch.GetTouchedWidget(position, position, touchableWidgets);
-
-        foreach (var widget in touchedWidgets)
-        {
-            if (widget is IWidgetExtended extendedWidget)
-            {
-                var widgetArgs = new WidgetArgs(clickCount, leftButton, shift);
-                if (extendedWidget.HandleWidgetTouched(Map.Navigator, position, widgetArgs))
-                    return true;
-            }
-            else
-            {
-                if (widget.HandleWidgetTouched(Map.Navigator, position))
-                    return true;
-                else if (widget is Hyperlink hyperlink && !string.IsNullOrWhiteSpace(hyperlink.Url))
-                {
-                    // The HyperLink is a special case because we need platform specific code to open the
-                    // link in a browswer. If the link is not handled within the widget we handle it
-                    // here and return true to indicate this is handled.
-                    OpenBrowser(hyperlink.Url!);
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private List<IWidgetExtended> GetExtendedWidgets()
-    {
-        AssureWidgets();
-        if (_updateWidget != Map.Widgets.Count || _extendedWidgets == null)
-        {
-            _updateWidget = Map.Widgets.Count;
-            _extendedWidgets = new List<IWidgetExtended>();
-            var widgetsOfMapAndLayers = Map.GetWidgetsOfMapAndLayers().ToList();
-            foreach (var widget in widgetsOfMapAndLayers)
-            {
-                if (widget is IWidgetExtended extendedWidget)
-                {
-                    _extendedWidgets.Add(extendedWidget);
-                }
-            }
-        }
-
-        return _extendedWidgets;
     }
 
     private void AssureWidgets()
@@ -706,25 +663,24 @@ public partial class MapControl : INotifyPropertyChanged, IDisposable
         if (_widgetCollection != Map.Widgets)
         {
             // reset widgets
-            _extendedWidgets = null;
             _touchableWidgets = null;
             _widgetCollection = Map.Widgets;
         }
     }
 
-    private List<IWidget> GetTouchableWidgets()
+    private List<ITouchableWidget> GetTouchableWidgets()
     {
         AssureWidgets();
         if (_updateTouchableWidget != Map.Widgets.Count || _touchableWidgets == null)
         {
             _updateTouchableWidget = Map.Widgets.Count;
-            _touchableWidgets = new List<IWidget>();
+            _touchableWidgets = [];
             var touchableWidgets = Map.GetWidgetsOfMapAndLayers().ToList();
             foreach (var widget in touchableWidgets)
             {
-                if (widget is IWidgetTouchable { Touchable: false }) continue;
+                if (widget is not ITouchableWidget) continue;
 
-                _touchableWidgets.Add(widget);
+                _touchableWidgets.Add((ITouchableWidget)widget);
             }
         }
 

@@ -12,9 +12,9 @@ using Mapsui.Styles.Thematics;
 using Mapsui.Tiling;
 using Mapsui.UI;
 using Mapsui.Widgets;
-using Mapsui.Widgets.BoxWidget;
-using Mapsui.Widgets.ButtonWidget;
-using Mapsui.Widgets.MouseCoordinatesWidget;
+using Mapsui.Widgets.BoxWidgets;
+using Mapsui.Widgets.ButtonWidgets;
+using Mapsui.Widgets.InfoWidgets;
 using NetTopologySuite.IO;
 
 #pragma warning disable IDISP001 // Dispose created
@@ -54,14 +54,11 @@ public class EditingSample : IMapControlSample
 
         var editManipulation = new EditManipulation();
 
-        map.Home = _ =>
+        if (editManager.Layer.Extent != null)
         {
-            if (editManager.Layer.Extent != null)
-            {
-                var extent = editManager.Layer.Extent!.Grow(editManager.Layer.Extent.Width * 0.2);
-                map.Navigator.ZoomToBox(extent);
-            }
-        };
+            var extent = editManager.Layer.Extent!.Grow(editManager.Layer.Extent.Width * 0.2);
+            map.Navigator.ZoomToBox(extent);
+        }
 
         map.Widgets.Add(new EditingWidget(mapControl, editManager, editManipulation));
         mapControl.Map = map;
@@ -76,91 +73,88 @@ public class EditingSample : IMapControlSample
         {
             Width = 130,
             Height = 370,
-            MarginY = 0,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            Position = new MPoint(2, 0),
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
         });
 
-        map.Widgets.Add(new TextBox
+        map.Widgets.Add(new TextBoxWidget
         {
-            MarginY = 0,
-            MarginX = 5,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            Position = new MPoint(0, 5),
+            Width = 120,
+            Height = 18,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Select Layer To Edit:",
             BackColor = Color.Transparent,
         });
 
         // Layers
-        var layer1 = new ButtonWidget
+        var layer1 = new TextButtonWidget
         {
-            MarginY = 20,
-            MarginX = 5,
+            Position = new MPoint(5, 20),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Layer 1",
             BackColor = Color.LightGray,
         };
-        layer1.WidgetTouched += (_, e) =>
+        layer1.Touched += (_, e) =>
         {
             _targetLayer = map.Layers.FirstOrDefault(f => f.Name == "Layer 1") as WritableLayer;
             e.Handled = true;
         };
 
         map.Widgets.Add(layer1);
-        var layer2 = new ButtonWidget
+        var layer2 = new TextButtonWidget
         {
-            MarginY = 40,
-            MarginX = 5,
+            Position = new MPoint(5, 40),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Layer 2",
             BackColor = Color.LightGray,
         };
-        layer2.WidgetTouched += (_, e) =>
+        layer2.Touched += (_, e) =>
         {
             _targetLayer = map.Layers.FirstOrDefault(f => f.Name == "Layer 2") as WritableLayer;
             e.Handled = true;
         };
         map.Widgets.Add(layer2);
-        var layer3 = new ButtonWidget
+        var layer3 = new TextButtonWidget
         {
-            MarginY = 60,
-            MarginX = 5,
+            Position = new MPoint(5, 60),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Layer 3",
             BackColor = Color.LightGray,
         };
-        layer3.WidgetTouched += (_, e) =>
+        layer3.Touched += (_, e) =>
         {
             _targetLayer = map.Layers.FirstOrDefault(f => f.Name == "Layer 3") as WritableLayer;
             e.Handled = true;
         };
         map.Widgets.Add(layer3);
         // Persistence
-        var save = new ButtonWidget
+        var save = new TextButtonWidget
         {
-            MarginY = 80,
-            MarginX = 5,
+            Position = new MPoint(5, 80),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Save",
             BackColor = Color.LightGray,
         };
-        save.WidgetTouched += (_, e) =>
+        save.Touched += (_, e) =>
         {
             _targetLayer?.AddRange(_editManager.Layer?.GetFeatures().Copy() ?? new List<IFeature>());
             _editManager.Layer?.Clear();
@@ -169,19 +163,18 @@ public class EditingSample : IMapControlSample
             e.Handled = true;
         };
         map.Widgets.Add(save);
-        var load = new ButtonWidget
+        var load = new TextButtonWidget
         {
-            MarginY = 100,
-            MarginX = 5,
+            Position = new MPoint(5, 100),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Load",
             BackColor = Color.LightGray,
         };
-        load.WidgetTouched += (_, e) =>
+        load.Touched += (_, e) =>
         {
             var features = _targetLayer?.GetFeatures().Copy() ?? Array.Empty<IFeature>();
 
@@ -199,19 +192,18 @@ public class EditingSample : IMapControlSample
             e.Handled = true;
         };
         map.Widgets.Add(load);
-        var cancel = new ButtonWidget
+        var cancel = new TextButtonWidget
         {
-            MarginY = 120,
-            MarginX = 5,
+            Position = new MPoint(5, 120),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Cancel",
             BackColor = Color.LightGray,
         };
-        cancel.WidgetTouched += (_, e) =>
+        cancel.Touched += (_, e) =>
         {
             if (_targetLayer != null && _tempFeatures != null)
             {
@@ -231,28 +223,27 @@ public class EditingSample : IMapControlSample
         };
         map.Widgets.Add(cancel);
 
-        map.Widgets.Add(new TextBox
+        map.Widgets.Add(new TextBoxWidget
         {
-            MarginY = 150,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            Position = new MPoint(5, 150),
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Editing Modes:",
             BackColor = Color.Transparent,
         });
         // Editing Modes
-        var addPoint = new ButtonWidget
+        var addPoint = new TextButtonWidget
         {
-            MarginY = 170,
-            MarginX = 5,
+            Position = new MPoint(5, 170),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Add Point",
             BackColor = Color.LightGray,
         };
-        addPoint.WidgetTouched += (_, e) =>
+        addPoint.Touched += (_, e) =>
         {
             var features = _targetLayer?.GetFeatures().Copy() ?? Array.Empty<IFeature>();
 
@@ -267,19 +258,18 @@ public class EditingSample : IMapControlSample
             e.Handled = true;
         };
         map.Widgets.Add(addPoint);
-        var addLine = new ButtonWidget
+        var addLine = new TextButtonWidget
         {
-            MarginY = 190,
-            MarginX = 5,
+            Position = new MPoint(5, 190),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Add Line",
             BackColor = Color.LightGray,
         };
-        addLine.WidgetTouched += (_, e) =>
+        addLine.Touched += (_, e) =>
         {
             var features = _targetLayer?.GetFeatures().Copy() ?? Array.Empty<IFeature>();
 
@@ -294,19 +284,18 @@ public class EditingSample : IMapControlSample
             e.Handled = true;
         };
         map.Widgets.Add(addLine);
-        var addPolygon = new ButtonWidget
+        var addPolygon = new TextButtonWidget
         {
-            MarginY = 210,
-            MarginX = 5,
+            Position = new MPoint(5, 210),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Add Polygon",
             BackColor = Color.LightGray,
         };
-        addPolygon.WidgetTouched += (_, e) =>
+        addPolygon.Touched += (_, e) =>
         {
             var features = _targetLayer?.GetFeatures().Copy() ?? Array.Empty<IFeature>();
 
@@ -321,74 +310,70 @@ public class EditingSample : IMapControlSample
             e.Handled = true;
         };
         map.Widgets.Add(addPolygon);
-        var modify = new ButtonWidget
+        var modify = new TextButtonWidget
         {
-            MarginY = 230,
-            MarginX = 5,
+            Position = new MPoint(5, 230),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Modify",
             BackColor = Color.LightGray,
         };
-        modify.WidgetTouched += (_, e) =>
+        modify.Touched += (_, e) =>
         {
             _editManager.EditMode = EditMode.Modify;
             e.Handled = true;
         };
         map.Widgets.Add(modify);
-        var rotate = new ButtonWidget
+        var rotate = new TextButtonWidget
         {
-            MarginY = 250,
-            MarginX = 5,
+            Position = new MPoint(5, 250),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Rotate",
             BackColor = Color.LightGray,
         };
-        rotate.WidgetTouched += (_, e) =>
+        rotate.Touched += (_, e) =>
         {
             _editManager.EditMode = EditMode.Rotate;
             e.Handled = true;
-            
+
         };
         map.Widgets.Add(rotate);
-        var scale = new ButtonWidget
+        var scale = new TextButtonWidget
         {
-            MarginY = 270,
-            MarginX = 5,
+            Position = new MPoint(5, 270),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Scale",
             BackColor = Color.LightGray,
         };
-        scale.WidgetTouched += (_, e) =>
+        scale.Touched += (_, e) =>
         {
             _editManager.EditMode = EditMode.Scale;
             e.Handled = true;
         };
         map.Widgets.Add(scale);
-        var none = new ButtonWidget
+        var none = new TextButtonWidget
         {
-            MarginY = 290,
-            MarginX = 5,
+            Position = new MPoint(5, 290),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "None",
             BackColor = Color.LightGray,
         };
-        none.WidgetTouched += (_, e) =>
+        none.Touched += (_, e) =>
         {
             _editManager.EditMode = EditMode.None;
             e.Handled = true;
@@ -396,37 +381,35 @@ public class EditingSample : IMapControlSample
         map.Widgets.Add(none);
 
         // Deletion
-        var selectForDelete = new ButtonWidget
+        var selectForDelete = new TextButtonWidget
         {
-            MarginY = 320,
-            MarginX = 5,
+            Position = new MPoint(5, 320),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Select (for delete)",
             BackColor = Color.LightGray,
         };
-        selectForDelete.WidgetTouched += (_, e) =>
+        selectForDelete.Touched += (_, e) =>
         {
             _editManager.SelectMode = !_editManager.SelectMode;
             e.Handled = true;
         };
         map.Widgets.Add(selectForDelete);
-        var delete = new ButtonWidget
+        var delete = new TextButtonWidget
         {
-            MarginY = 340,
-            MarginX = 5,
+            Position = new MPoint(5, 340),
             Height = 18,
             Width = 120,
             CornerRadius = 2,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Absolute,
+            VerticalAlignment = VerticalAlignment.Absolute,
             Text = "Delete",
             BackColor = Color.LightGray,
         };
-        delete.WidgetTouched += (_, e) =>
+        delete.Touched += (_, e) =>
         {
             if (_editManager.SelectMode)
             {
@@ -446,7 +429,7 @@ public class EditingSample : IMapControlSample
         map.Widgets.Add(delete);
 
         // Mouse Position Widget
-        map.Widgets.Add(new MouseCoordinatesWidget(map));
+        map.Widgets.Add(new MouseCoordinatesWidget());
 
     }
 
@@ -490,37 +473,36 @@ public class EditingSample : IMapControlSample
         };
     }
 
-    private static IStyle CreateEditLayerBasicStyle()
+    private static VectorStyle CreateEditLayerBasicStyle()
     {
         var editStyle = new VectorStyle
         {
-            Fill = new Brush(EditModeColor),
-            Line = new Pen(EditModeColor, 3),
-            Outline = new Pen(EditModeColor, 3)
+            Fill = new Brush(_editModeColor),
+            Line = new Pen(_editModeColor, 3),
+            Outline = new Pen(_editModeColor, 3)
         };
         return editStyle;
     }
 
-    private static readonly Color EditModeColor = new Color(124, 22, 111, 180);
-    private static readonly Color PointLayerColor = new Color(240, 240, 240, 240);
-    private static readonly Color LineLayerColor = new Color(150, 150, 150, 240);
-    private static readonly Color PolygonLayerColor = new Color(20, 20, 20, 240);
+    private static readonly Color _editModeColor = new(124, 22, 111, 180);
+    private static readonly Color _pointLayerColor = new(240, 240, 240, 240);
+    private static readonly Color _lineLayerColor = new(150, 150, 150, 240);
+    private static readonly Color _polygonLayerColor = new(20, 20, 20, 240);
 
-
-    private static readonly SymbolStyle? SelectedStyle = new SymbolStyle
+    private static readonly SymbolStyle? _selectedStyle = new()
     {
         Fill = null,
         Outline = new Pen(Color.Red, 3),
         Line = new Pen(Color.Red, 3)
     };
 
-    private static readonly SymbolStyle? DisableStyle = new SymbolStyle { Enabled = false };
+    private static readonly SymbolStyle? _disableStyle = new() { Enabled = false };
 
-    private static IStyle CreateSelectedStyle()
+    private static ThemeStyle CreateSelectedStyle()
     {
         // To show the selected style a ThemeStyle is used which switches on and off the SelectedStyle
         // depending on a "Selected" attribute.
-        return new ThemeStyle(f => (bool?)f["Selected"] == true ? SelectedStyle : DisableStyle);
+        return new ThemeStyle(f => (bool?)f["Selected"] == true ? _selectedStyle : _disableStyle);
     }
 
     private static WritableLayer CreatePointLayer()
@@ -561,32 +543,32 @@ public class EditingSample : IMapControlSample
         return polygonLayer;
     }
 
-    private static IStyle CreatePointStyle()
+    private static VectorStyle CreatePointStyle()
     {
         return new VectorStyle
         {
-            Fill = new Brush(PointLayerColor),
-            Line = new Pen(PointLayerColor, 3),
+            Fill = new Brush(_pointLayerColor),
+            Line = new Pen(_pointLayerColor, 3),
             Outline = new Pen(Color.Gray, 2)
         };
     }
 
-    private static IStyle CreateLineStyle()
+    private static VectorStyle CreateLineStyle()
     {
         return new VectorStyle
         {
-            Fill = new Brush(LineLayerColor),
-            Line = new Pen(LineLayerColor, 3),
-            Outline = new Pen(LineLayerColor, 3)
+            Fill = new Brush(_lineLayerColor),
+            Line = new Pen(_lineLayerColor, 3),
+            Outline = new Pen(_lineLayerColor, 3)
         };
     }
-    private static IStyle CreatePolygonStyle()
+    private static VectorStyle CreatePolygonStyle()
     {
         return new VectorStyle
         {
-            Fill = new Brush(new Color(PolygonLayerColor)),
-            Line = new Pen(PolygonLayerColor, 3),
-            Outline = new Pen(PolygonLayerColor, 3)
+            Fill = new Brush(new Color(_polygonLayerColor)),
+            Line = new Pen(_polygonLayerColor, 3),
+            Outline = new Pen(_polygonLayerColor, 3)
         };
     }
 }

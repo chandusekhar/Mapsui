@@ -14,7 +14,7 @@ public class ArcGISImageServiceSample : ISample
     private const string LandsatGlsImageServer = @"https://landsat2.arcgis.com/arcgis/rest/services/LandsatGLS/MS/ImageServer";
     private ArcGISImageCapabilities? _capabilities;
 
-    public string Name => "11 ArcGIS image";
+    public string Name => "ArcGIS image";
     public string Category => "Data Formats";
 
     public static IUrlPersistentCache? DefaultCache { get; set; }
@@ -38,11 +38,12 @@ public class ArcGISImageServiceSample : ISample
 
     public async Task<Map> CreateMapAsync()
     {
-        var map = new Map
-        {
-            Home = n => n.CenterOnAndZoomTo(new MPoint(1270000.0, 5880000.0), 10000)
-        };
+        var map = new Map();
+
+        map.Navigator.CenterOnAndZoomTo(new MPoint(1270000.0, 5880000.0), 10000);
+
         map.Layers.Add(await CreateLayerAsync());
+
         return map;
     }
 

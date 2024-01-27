@@ -1,14 +1,12 @@
 ﻿using System;
-using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
-using Mapsui.Layers;
-using Mapsui.Nts;
+using System.IO;
+using System.Security.Authentication.ExtendedProtection;
+using System.Threading;
+using Mapsui.Extensions;
 using Mapsui.Rendering.Skia.Extensions;
 using Mapsui.Styles;
 using NetTopologySuite.Geometries;
 using SkiaSharp;
-using static SkiaSharp.SKPath;
-using Topten.RichTextKit;
 
 namespace Mapsui.Rendering.Skia;
 
@@ -17,30 +15,39 @@ internal static class PolygonRenderer
     /// <summary>
     /// fill paint scale
     /// </summary>
-    private const float Scale = 10.0f;
+    private const float _scale = 10.0f;
 
-    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP001:Dispose created")]
-    public static void Draw(SKCanvas canvas, Viewport viewport, ILayer layer, VectorStyle vectorStyle, IFeature feature,
-        Polygon polygon, float opacity, ISymbolCache symbolCache, IVectorCache vectorCache)
+    public static void Draw(SKCanvas canvas, Viewport viewport, VectorStyle vectorStyle, IFeature feature,
+        Polygon polygon, float opacity, IVectorCache<SKPath, SKPaint> vectorCache)
     {
+        SKPath ToPath((long featureId, MRect extent, double rotation, float lineWidth) valueTuple)
+        {
+            var result = polygon.ToSkiaPath(viewport, viewport.ToSkiaRect(), valueTuple.lineWidth);
+            return result;
+        }
+
         if (vectorStyle == null)
             return;
 
-
-        var paint = vectorCache.GetOrCreatePaint(vectorStyle.Outline, opacity, CreateSkPaint);
-        var fillPaint = vectorCache.GetOrCreatePaint(vectorStyle.Fill, opacity, viewport.Rotation, CreateSkPaint);
-
-        float lineWidth = Convert.ToSingle(vectorStyle.Outline?.Width ?? 1);
-        var path = vectorCache.GetOrCreatePath(viewport, feature, polygon, lineWidth, (polygon, viewport, lineWidth) =>
+        var extent = viewport.ToExtent();
+        var rotation = viewport.Rotation;
+        float lineWidth = (float)(vectorStyle.Outline?.Width ?? 1);
+        
+        using var path = vectorCache.GetOrCreatePath((feature.Id, extent, rotation, lineWidth), ToPath);
+        if (vectorStyle.Fill.IsVisible())
         {
-            var skRect = vectorCache.GetOrCreatePath(viewport, ViewportExtensions.ToSkiaRect);
-            return polygon.ToSkiaPath(viewport, skRect, lineWidth);
-        });
+            using var fillPaint = vectorCache.GetOrCreatePaint((vectorStyle.Fill, opacity, viewport.Rotation), CreateSkPaint);
+            DrawPath(canvas, vectorStyle, path, fillPaint);
+        }
 
-        DrawPath(canvas, vectorStyle, path, fillPaint, paint);
+        if (vectorStyle.Outline.IsVisible())
+        {
+            using var paint = vectorCache.GetOrCreatePaint((vectorStyle.Outline, opacity), CreateSkPaint);
+            canvas.DrawPath(path, paint);
+        }
     }
 
-    internal static void DrawPath(SKCanvas canvas, VectorStyle vectorStyle, SKPath path, SKPaint? paintFill, SKPaint? paint)
+    internal static void DrawPath(SKCanvas canvas, VectorStyle vectorStyle, CacheTracker<SKPath> path, CacheTracker<SKPaint> paintFill)
     {
         if (vectorStyle?.Fill?.FillStyle == FillStyle.Solid)
         {
@@ -51,24 +58,23 @@ internal static class PolygonRenderer
             // Do this, because if not, path isn't filled complete
             using (new SKAutoCanvasRestore(canvas))
             {
-                canvas.ClipPath(path);
-                var bounds = path.Bounds;
+                var skPath = path.Instance;
+                canvas.ClipPath(skPath);
+                var bounds = skPath.Bounds;
                 // Make sure, that the brush starts with the correct position
-                var inflate = ((int)path.Bounds.Width * 0.3f / Scale) * Scale;
+                var inflate = ((int)skPath.Bounds.Width * 0.3f / _scale) * _scale;
                 bounds.Inflate(inflate, inflate);
                 // Draw rect with bigger size, which is clipped by path
                 canvas.DrawRect(bounds, paintFill);
             }
         }
-
-        if (vectorStyle?.Outline != null)
-        {
-            canvas.DrawPath(path, paint);
-        }
     }
 
-    internal static SKPaint CreateSkPaint(Brush? brush, float opacity, double rotation, ISymbolCache? symbolCache)
+    internal static SKPaint CreateSkPaint((Brush? brush, float opacity, double rotation) valueTuple, ISymbolCache? symbolCache)
     {
+        var brush = valueTuple.brush;
+        var opacity = valueTuple.opacity;
+        var rotation = valueTuple.rotation;
         var fillColor = Color.Gray; // default
 
         var paintFill = new SKPaint { IsAntialias = true };
@@ -94,47 +100,47 @@ internal static class PolygonRenderer
             paintFill.Shader = null;
             paintFill.Color = fillColor.ToSkia(opacity);
             using var fillPath = new SKPath();
-            var matrix = SKMatrix.CreateScale(Scale, Scale);
+            var matrix = SKMatrix.CreateScale(_scale, _scale);
 
             switch (brush?.FillStyle)
             {
                 case FillStyle.Cross:
-                    fillPath.MoveTo(Scale * 0.8f, Scale * 0.8f);
+                    fillPath.MoveTo(_scale * 0.8f, _scale * 0.8f);
                     fillPath.LineTo(0, 0);
-                    fillPath.MoveTo(0, Scale * 0.8f);
-                    fillPath.LineTo(Scale * 0.8f, 0);
+                    fillPath.MoveTo(0, _scale * 0.8f);
+                    fillPath.LineTo(_scale * 0.8f, 0);
                     paintFill.PathEffect = SKPathEffect.Create2DPath(matrix, fillPath);
                     break;
                 case FillStyle.DiagonalCross:
-                    fillPath.MoveTo(Scale, Scale);
+                    fillPath.MoveTo(_scale, _scale);
                     fillPath.LineTo(0, 0);
-                    fillPath.MoveTo(0, Scale);
-                    fillPath.LineTo(Scale, 0);
+                    fillPath.MoveTo(0, _scale);
+                    fillPath.LineTo(_scale, 0);
                     paintFill.PathEffect = SKPathEffect.Create2DPath(matrix, fillPath);
                     break;
                 case FillStyle.BackwardDiagonal:
-                    fillPath.MoveTo(0, Scale);
-                    fillPath.LineTo(Scale, 0);
+                    fillPath.MoveTo(0, _scale);
+                    fillPath.LineTo(_scale, 0);
                     paintFill.PathEffect = SKPathEffect.Create2DPath(matrix, fillPath);
                     break;
                 case FillStyle.ForwardDiagonal:
-                    fillPath.MoveTo(Scale, Scale);
+                    fillPath.MoveTo(_scale, _scale);
                     fillPath.LineTo(0, 0);
                     paintFill.PathEffect = SKPathEffect.Create2DPath(matrix, fillPath);
                     break;
                 case FillStyle.Dotted:
                     paintFill.Style = SKPaintStyle.StrokeAndFill;
-                    fillPath.AddCircle(Scale * 0.5f, Scale * 0.5f, Scale * 0.35f);
+                    fillPath.AddCircle(_scale * 0.5f, _scale * 0.5f, _scale * 0.35f);
                     paintFill.PathEffect = SKPathEffect.Create2DPath(matrix, fillPath);
                     break;
                 case FillStyle.Horizontal:
-                    fillPath.MoveTo(0, Scale * 0.5f);
-                    fillPath.LineTo(Scale, Scale * 0.5f);
+                    fillPath.MoveTo(0, _scale * 0.5f);
+                    fillPath.LineTo(_scale, _scale * 0.5f);
                     paintFill.PathEffect = SKPathEffect.Create2DPath(matrix, fillPath);
                     break;
                 case FillStyle.Vertical:
-                    fillPath.MoveTo(Scale * 0.5f, 0);
-                    fillPath.LineTo(Scale * 0.5f, Scale);
+                    fillPath.MoveTo(_scale * 0.5f, 0);
+                    fillPath.LineTo(_scale * 0.5f, _scale);
                     paintFill.PathEffect = SKPathEffect.Create2DPath(matrix, fillPath);
                     break;
                 case FillStyle.Bitmap:
@@ -161,8 +167,10 @@ internal static class PolygonRenderer
         return paintFill;
     }
 
-    internal static SKPaint CreateSkPaint(Pen? pen, float opacity)
+    internal static SKPaint CreateSkPaint((Pen? pen, float opacity) valueTuple)
     {
+        var pen = valueTuple.pen;
+        var opacity = valueTuple.opacity;
         float lineWidth = 1;
         var lineColor = Color.Black; // default
         var strokeCap = PenStrokeCap.Butt; // default
@@ -174,7 +182,7 @@ internal static class PolygonRenderer
 
         if (pen != null)
         {
-            lineWidth = Convert.ToSingle(pen.Width);
+            lineWidth = (float)pen.Width;
             lineColor = pen.Color;
             strokeCap = pen.PenStrokeCap;
             strokeJoin = pen.StrokeJoin;

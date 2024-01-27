@@ -4,16 +4,18 @@
 
 // This file was originally created by Morten Nielsen (www.iter.dk) as part of SharpMap
 
+using Mapsui.Extensions;
+using Mapsui.Fetcher;
+using Mapsui.Layers;
+using Mapsui.Logging;
+using Mapsui.Styles;
+using Mapsui.Widgets;
+using Mapsui.Widgets.InfoWidgets;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using Mapsui.Extensions;
-using Mapsui.Fetcher;
-using Mapsui.Layers;
-using Mapsui.Styles;
-using Mapsui.Widgets;
 
 namespace Mapsui;
 
@@ -21,12 +23,13 @@ namespace Mapsui;
 /// Map class
 /// </summary>
 /// <remarks>
-/// Map holds all map related infos like the target CRS, layers, widgets and so on.
+/// Map holds all map related info like the target CRS, layers, widgets and so on.
 /// </remarks>
 public class Map : INotifyPropertyChanged, IDisposable
 {
-    private LayerCollection _layers = new();
+    private LayerCollection _layers = [];
     private Color _backColor = Color.White;
+    private IWidget[] _oldWidgets = [];
 
     /// <summary>
     /// Initializes a new map
@@ -34,25 +37,21 @@ public class Map : INotifyPropertyChanged, IDisposable
     public Map()
     {
         BackColor = Color.White;
-        Layers = new LayerCollection();
+        Layers = [];
+        CheckForLoggingWidget();
         Navigator.RefreshDataRequest += Navigator_RefreshDataRequest;
         Navigator.ViewportChanged += Navigator_ViewportChanged;
     }
 
-    private void Navigator_ViewportChanged(object? sender, PropertyChangedEventArgs e)
+    private void Navigator_ViewportChanged(object? sender, ViewportChangedEventArgs e)
     {
         RefreshGraphics();
     }
 
     /// <summary>
-    /// To register if the initial Home call has been done.
-    /// </summary>
-    public bool HomeIsCalledOnce { get; set; }
-
-    /// <summary>
     /// List of Widgets belonging to map
     /// </summary>
-    public ConcurrentQueue<IWidget> Widgets { get; } = new();
+    public ConcurrentQueue<IWidget> Widgets { get; } = [];
 
     /// <summary>
     /// Coordinate reference system (projection type of map).
@@ -65,7 +64,11 @@ public class Map : INotifyPropertyChanged, IDisposable
     /// </summary>
     public LayerCollection Layers
     {
-        get => _layers;
+        get
+        {
+            AssureWidgetsConnected();
+            return _layers;
+        }
         private set
         {
             var tempLayers = _layers;
@@ -75,6 +78,36 @@ public class Map : INotifyPropertyChanged, IDisposable
             _layers = value;
             _layers.Changed += LayersCollectionChanged;
         }
+    }
+
+    private void AssureWidgetsConnected()
+    {
+        // it would be better if Widgets would be an observable collection then I wouldn't need this workaround
+        if (_oldWidgets.Length != Widgets.Count)
+        {
+            foreach (var widget in _oldWidgets)
+            {
+                if (widget is INotifyPropertyChanged propertyChanged)
+                {
+                    propertyChanged.PropertyChanged -= WidgetPropertyChanged;
+                }
+            }
+
+            _oldWidgets = [.. Widgets];
+
+            foreach (var widget in Widgets)
+            {
+                if (widget is INotifyPropertyChanged propertyChanged)
+                {
+                    propertyChanged.PropertyChanged += WidgetPropertyChanged;
+                }
+            }
+        }
+    }
+
+    private void WidgetPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RefreshGraphics();
     }
 
     /// <summary>
@@ -131,7 +164,7 @@ public class Map : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// Handles all manipulations of the map viewport
     /// </summary>
-    public Navigator Navigator { get; private set; } =  new Navigator();
+    public Navigator Navigator { get; private set; } = new Navigator();
 
     private void Navigator_RefreshDataRequest(object? sender, EventArgs e)
     {
@@ -243,9 +276,9 @@ public class Map : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(Layers));
     }
 
-    private MMinMax? GetMinMaxResolution(IEnumerable<double>? resolutions)
+    private static MMinMax? GetMinMaxResolution(IEnumerable<double>? resolutions)
     {
-        if (resolutions == null || resolutions.Count() == 0) return null;
+        if (resolutions == null || !resolutions.Any()) return null;
         resolutions = resolutions.OrderByDescending(r => r).ToList();
         var mostZoomedOut = resolutions.First();
         var mostZoomedIn = resolutions.Last() * 0.5; // Divide by two to allow one extra level to zoom-in
@@ -311,8 +344,6 @@ public class Map : INotifyPropertyChanged, IDisposable
         DataChanged?.Invoke(sender, e);
     }
 
-    public Action<Navigator> Home { get; set; } = n => n.ZoomToPanBounds();
-
     public IEnumerable<IWidget> GetWidgetsOfMapAndLayers()
     {
         return Widgets.Concat(Layers.Where(l => l.Enabled).Select(l => l.Attribution))
@@ -334,7 +365,7 @@ public class Map : INotifyPropertyChanged, IDisposable
     {
         foreach (var layer in Layers)
         {
-            // remove Event so that no memory leaks occour
+            // remove Event so that no memory leaks occur
             LayerRemoved(layer);
         }
 
@@ -353,5 +384,33 @@ public class Map : INotifyPropertyChanged, IDisposable
         }
 
         return areAnimationsRunning;
+    }
+
+    /// <summary>
+    /// Check, if a debugger is attached and, if yes, add a default LoggingWidget
+    /// </summary>
+    /// <param name="map">Map, to which LoggingWidget should add</param>
+    private void CheckForLoggingWidget()
+    {
+        // If in debug mode ...
+        if (System.Diagnostics.Debugger.IsAttached)
+        {
+            // Is there already a LoggingWidget ...
+            if (Widgets.Where(w => w.GetType() == typeof(LoggingWidget)).Count() > 0)
+                // ... then return;
+                return;
+
+            var loggingWidget = new LoggingWidget()
+            {
+                Margin = new MRect(10),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                BackColor = Color.Transparent,
+                Opacity = 0.0f,
+                LogLevelFilter = LogLevel.Trace,
+            };
+
+            Widgets.Add(loggingWidget);
+        }
     }
 }

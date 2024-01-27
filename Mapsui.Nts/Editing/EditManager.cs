@@ -41,10 +41,6 @@ public class EditManager
 
         if (EditMode == EditMode.DrawingLine)
         {
-            // line needs to be at least 2 vertices
-            if (_addInfo.Vertices.Count > 2)
-                _addInfo.Vertices.RemoveAt(_addInfo.Vertices.Count - 1); // Remove duplicate last element added by the final double click
-
             _addInfo.Feature.Geometry = new LineString(_addInfo.Vertices.ToArray());
 
             _addInfo.Feature = null;
@@ -53,9 +49,6 @@ public class EditManager
         }
         else if (EditMode == EditMode.DrawingPolygon)
         {
-            // Polygon needs to be at least 3 vertices
-            if (_addInfo.Vertices.Count > 3)
-                _addInfo.Vertices.RemoveAt(_addInfo.Vertices.Count - 1); // correct for double click
             var polygon = _addInfo.Feature.Geometry as Polygon;
             if (polygon == null) return false;
 
@@ -87,10 +80,8 @@ public class EditManager
     {
         if (EditMode == EditMode.AddPoint)
         {
-#pragma warning disable IDISP004 // Don't ignore created IDisposable
             Layer?.Add(new GeometryFeature { Geometry = worldPosition.ToMPoint().ToPoint() });
             Layer?.DataHasChanged();
-#pragma warning restore IDISP004 // Don't ignore created IDisposable
         }
         else if (EditMode == EditMode.AddLine)
         {
@@ -187,7 +178,7 @@ public class EditManager
                             _dragInfo.DraggingFeature = true;
                         }
                     }
-                  
+
                     return true; // to indicate start of drag
                 }
             }
@@ -223,15 +214,15 @@ public class EditManager
             }
             else // NEW: try to drag the whole feature when the position of dragging is inside the geometry
             {
-                MPoint prevtx = _dragInfo.Vertex.ToMPoint(); // record the previous position
-                MPoint newvtx = worldPosition.ToMPoint() - _dragInfo.StartOffsetToVertex; // new position
+                MPoint previousVertex = _dragInfo.Vertex.ToMPoint(); // record the previous position
+                MPoint newVertex = worldPosition.ToMPoint() - _dragInfo.StartOffsetToVertex; // new position
 
                 if (_dragInfo.Feature.Geometry is Polygon polygon)
                 {
                     var vertices = polygon.ExteriorRing?.Coordinates ?? Array.Empty<Coordinate>();
                     foreach (Coordinate vtx in vertices) // modify every vertex on the ring
                     {
-                        vtx.SetXY(vtx.ToMPoint() + (newvtx - prevtx)); // adding the offset
+                        vtx.SetXY(vtx.ToMPoint() + (newVertex - previousVertex)); // adding the offset
                     }
                 }
                 else if (_dragInfo.Feature.Geometry is LineString lineString)
@@ -239,13 +230,13 @@ public class EditManager
                     var vertices = lineString.Coordinates ?? Array.Empty<Coordinate>();
                     foreach (Coordinate vtx in vertices) // modify every vertex on the line
                     {
-                        vtx.SetXY(vtx.ToMPoint() + (newvtx - prevtx)); // adding the offset
+                        vtx.SetXY(vtx.ToMPoint() + (newVertex - previousVertex)); // adding the offset
                     }
                 }
                 else if (_dragInfo.Feature.Geometry is Point point)
                 {
-                    var vertice = point.Coordinate;
-                    vertice.SetXY(vertice.ToMPoint() + (newvtx - prevtx)); // adding the offset
+                    var vertex = point.Coordinate;
+                    vertex.SetXY(vertex.ToMPoint() + (newVertex - previousVertex)); // adding the offset
                 }
 
                 _dragInfo.Vertex.SetXY(worldPosition.ToMPoint() - _dragInfo.StartOffsetToVertex);
@@ -401,5 +392,4 @@ public class EditManager
             _scaleInfo.Feature = null;
         }
     }
-
 }

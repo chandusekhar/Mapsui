@@ -1,30 +1,23 @@
+using Mapsui.Extensions;
+using Mapsui.UI.Utils;
+using Mapsui.UI.Wpf.Extensions;
+using Mapsui.Utilities;
+using SkiaSharp.Views.Desktop;
+using SkiaSharp.Views.WPF;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using Mapsui.Extensions;
-using Mapsui.Layers;
-using Mapsui.Rendering.Skia;
-using Mapsui.UI.Utils;
-using Mapsui.UI.Wpf.Extensions;
-using Mapsui.Utilities;
-using SkiaSharp.Views.Desktop;
-using SkiaSharp.Views.WPF;
-using HorizontalAlignment = System.Windows.HorizontalAlignment;
-using Point = System.Windows.Point;
-using VerticalAlignment = System.Windows.VerticalAlignment;
-using XamlVector = System.Windows.Vector;
 
 namespace Mapsui.UI.Wpf;
 
 public partial class MapControl : Grid, IMapControl, IDisposable
 {
     private readonly Rectangle _selectRectangle = CreateSelectRectangle();
-    private MPoint? _downMousePosition;
+    private MPoint? _pointerDownPosition;
     private bool _mouseDown;
     private MPoint? _previousMousePosition;
     private bool _hasBeenManipulated;
@@ -51,34 +44,30 @@ public partial class MapControl : Grid, IMapControl, IDisposable
             else RunOnUIThread(InvalidateCanvas);
         };
 
-        Children.Add(WpfCanvas);
         Children.Add(SkiaCanvas);
         Children.Add(_selectRectangle);
 
         SkiaCanvas.PaintSurface += SKElementOnPaintSurface;
 
-        Loaded += MapControlLoaded;
+        // Pointer events
         MouseLeftButtonDown += MapControlMouseLeftButtonDown;
         MouseLeftButtonUp += MapControlMouseLeftButtonUp;
-
-        TouchUp += MapControlTouchUp;
-
         MouseMove += MapControlMouseMove;
         MouseLeave += MapControlMouseLeave;
         MouseWheel += MapControlMouseWheel;
-
-        SizeChanged += MapControlSizeChanged;
-
+        TouchUp += MapControlTouchUp;
         ManipulationStarted += OnManipulationStarted;
         ManipulationDelta += OnManipulationDelta;
         ManipulationCompleted += OnManipulationCompleted;
         ManipulationInertiaStarting += OnManipulationInertiaStarting;
 
+        Loaded += MapControlLoaded;
+
+        SizeChanged += MapControlSizeChanged;
+
         IsManipulationEnabled = true;
 
-        WpfCanvas.Visibility = Visibility.Collapsed;
         SkiaCanvas.Visibility = Visibility.Visible;
-        Renderer = new MapRenderer();
         RefreshGraphics();
     }
 
@@ -91,7 +80,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
             StrokeThickness = 3,
             RadiusX = 0.5,
             RadiusY = 0.5,
-            StrokeDashArray = new DoubleCollection { 3.0 },
+            StrokeDashArray = [3.0],
             Opacity = 0.3,
             VerticalAlignment = VerticalAlignment.Top,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -99,18 +88,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         };
     }
 
-    public Canvas WpfCanvas { get; } = CreateWpfRenderCanvas();
-
     private SKElement SkiaCanvas { get; } = CreateSkiaRenderElement();
-
-    private static Canvas CreateWpfRenderCanvas()
-    {
-        return new Canvas
-        {
-            VerticalAlignment = VerticalAlignment.Stretch,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-    }
 
     private static SKElement CreateSkiaRenderElement()
     {
@@ -121,6 +99,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         };
     }
 
+    [Obsolete("Use Info and ILayerFeatureInfo", true)]
     public event EventHandler<FeatureInfoEventArgs>? FeatureInfo; // todo: Remove and add sample for alternative
 
     internal void InvalidateCanvas()
@@ -168,16 +147,15 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private void MapControlMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (HandleTouching(e.GetPosition(this).ToMapsui(), true, e.ClickCount, ShiftPressed))
+        _pointerDownPosition = e.GetPosition(this).ToMapsui();
+
+        if (HandleWidgetPointerDown(_pointerDownPosition, true, e.ClickCount, GetShiftPressed()))
             return;
 
-        var touchPosition = e.GetPosition(this).ToMapsui();
-        _previousMousePosition = touchPosition;
-        _downMousePosition = touchPosition;
+        _previousMousePosition = _pointerDownPosition;
         _mouseDown = true;
         _flingTracker.Clear();
         CaptureMouse();
-
     }
 
     private static bool IsInBoxZoomMode()
@@ -188,8 +166,13 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     private void MapControlMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         var mousePosition = e.GetPosition(this).ToMapsui();
-        if (HandleTouched(mousePosition, true, e.ClickCount, ShiftPressed))
+
+        if (HandleWidgetPointerUp(mousePosition, _pointerDownPosition, true, e.ClickCount, GetShiftPressed()))
+        {
+            _mouseDown = false;
+
             return;
+        }
 
         if (_previousMousePosition != null)
         {
@@ -199,10 +182,9 @@ public partial class MapControl : Grid, IMapControl, IDisposable
                 var current = Map.Navigator.Viewport.ScreenToWorld(mousePosition.X, mousePosition.Y);
                 ZoomToBox(previous, current);
             }
-            else if (_downMousePosition != null && IsClick(mousePosition, _downMousePosition))
+            else if (_pointerDownPosition != null && IsClick(mousePosition, _pointerDownPosition))
             {
-                HandleFeatureInfo(e);
-                OnInfo(CreateMapInfoEventArgs(mousePosition, _downMousePosition, e.ClickCount));
+                OnInfo(CreateMapInfoEventArgs(mousePosition, _pointerDownPosition, e.ClickCount));
             }
         }
 
@@ -273,38 +255,19 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         });
     }
 
-    private void HandleFeatureInfo(MouseButtonEventArgs e)
-    {
-        if (FeatureInfo == null) return; // don't fetch if you the call back is not set.
-
-        if (_downMousePosition == e.GetPosition(this).ToMapsui())
-            foreach (var layer in Map.Layers)
-            {
-                // ReSharper disable once SuspiciousTypeConversion.Global
-                (layer as IFeatureInfo)?.GetFeatureInfo(Map.Navigator.Viewport, _downMousePosition.X, _downMousePosition.Y,
-                    OnFeatureInfo);
-            }
-
-    }
-
-    private void OnFeatureInfo(IDictionary<string, IEnumerable<IFeature>> features)
-    {
-        FeatureInfo?.Invoke(this, new FeatureInfoEventArgs { FeatureInfo = features });
-    }
-
     private void MapControlMouseMove(object sender, MouseEventArgs e)
     {
-        if (HandleMoving(e.GetPosition(this).ToMapsui(), e.LeftButton == MouseButtonState.Pressed, 0, ShiftPressed))
+        if (HandleWidgetPointerMove(e.GetPosition(this).ToMapsui(), e.LeftButton == MouseButtonState.Pressed, 0, GetShiftPressed()))
             return;
 
         if (IsInBoxZoomMode())
         {
-            DrawBbox(e.GetPosition(this));
+            DrawRectangle(e.GetPosition(this));
             return;
         }
 
         _currentMousePosition = e.GetPosition(this).ToMapsui();
-        
+
         if (_mouseDown)
         {
             if (_previousMousePosition == null)
@@ -333,7 +296,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         RunOnUIThread(() => _selectRectangle.Visibility = Visibility.Collapsed);
     }
 
-    private void DrawBbox(Point newPos)
+    private void DrawRectangle(Point newPos)
     {
         if (_mouseDown)
         {
@@ -363,8 +326,8 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         }
     }
 
-    private float ViewportWidth => (float)ActualWidth;
-    private float ViewportHeight => (float)ActualHeight;
+    private double ViewportWidth => ActualWidth;
+    private double ViewportHeight => ActualHeight;
 
     private static void OnManipulationInertiaStarting(object? sender, ManipulationInertiaStartingEventArgs e)
     {
@@ -404,7 +367,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         e.Handled = true;
     }
 
-    private double GetDeltaScale(XamlVector scale)
+    private double GetDeltaScale(Vector scale)
     {
         if (Map.Navigator.ZoomLock) return 1;
         var deltaScale = (scale.X + scale.Y) / 2;
@@ -431,18 +394,12 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         CommonDrawControl(canvas);
     }
 
-    private void PaintWpf()
+    private double GetPixelDensity()
     {
-        CommonDrawControl(WpfCanvas);
-    }
-
-    private float GetPixelDensity()
-    {
-        var presentationSource = PresentationSource.FromVisual(this);
-        if (presentationSource == null) throw new Exception("PresentationSource is null");
-        var compositionTarget = presentationSource.CompositionTarget;
-        if (compositionTarget == null) throw new Exception("CompositionTarget is null");
-
+        var presentationSource = PresentationSource.FromVisual(this)
+            ?? throw new Exception("PresentationSource is null");
+        var compositionTarget = presentationSource.CompositionTarget
+            ?? throw new Exception("CompositionTarget is null");
         var matrix = compositionTarget.TransformToDevice;
 
         var dpiX = matrix.M11;
@@ -450,7 +407,7 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
         if (dpiX != dpiY) throw new ArgumentException();
 
-        return (float)dpiX;
+        return dpiX;
     }
 
     protected virtual void Dispose(bool disposing)
@@ -469,5 +426,8 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public bool ShiftPressed => Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift);
+    private static bool GetShiftPressed()
+    {
+        return Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift);
+    }
 }

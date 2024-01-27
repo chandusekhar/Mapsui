@@ -1,15 +1,15 @@
-using System;
-using System.Diagnostics;
 using Mapsui.Layers;
 using Mapsui.Nts.Extensions;
 using NetTopologySuite.Geometries;
+using System;
 
 namespace Mapsui.Nts;
 
-public class GeometryFeature : BaseFeature, IFeature, IDisposable
+/// <summary>
+/// Feature representing a NTS geometry on the <cref="Map"/>
+/// </summary>
+public class GeometryFeature : BaseFeature, IFeature
 {
-    private bool _disposed;
-
     public GeometryFeature()
     {
     }
@@ -33,17 +33,25 @@ public class GeometryFeature : BaseFeature, IFeature, IDisposable
         Geometry = geometry;
     }
 
+    /// <summary>
+    /// Geometry for this feature
+    /// </summary>
     public Geometry? Geometry { get; set; }
 
-    public MRect? Extent => Geometry?.EnvelopeInternal.ToMRect(); // Todo: Make not-nullable
+    /// <summary>
+    /// Extent of feature
+    /// </summary>
+    public MRect? Extent => Geometry?.EnvelopeInternal.ToMRect();
 
-    public override void Dispose()
-    {
-        if (_disposed) return;
-        base.Dispose();
-        _disposed = true;
-    }
+    /// <summary>
+    /// Order of feature
+    /// </summary>
+    public int ZOrder { get; set; } = 0;
 
+    /// <summary>
+    /// Implementation of visitor pattern for coordinates
+    /// </summary>
+    /// <param name="visit"></param>
     public void CoordinateVisitor(Action<double, double, CoordinateSetter> visit)
     {
         if (Geometry is null) return;
@@ -59,5 +67,15 @@ public class GeometryFeature : BaseFeature, IFeature, IDisposable
         Geometry.GeometryChanged();
         // Recalculate the Envelope
         Geometry.GeometryChangedAction();
+    }
+
+    override public void Modified()
+    {
+        base.Modified();
+
+        // Recalculate Geometry Values (for example in Polygons).
+        Geometry?.GeometryChanged();
+        // Recalculate the Envelope
+        Geometry?.GeometryChangedAction();
     }
 }

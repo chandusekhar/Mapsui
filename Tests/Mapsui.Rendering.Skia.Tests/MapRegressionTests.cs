@@ -20,6 +20,7 @@ using Mapsui.Samples.CustomWidget;
 using Mapsui.Tiling;
 using Mapsui.UI;
 using NUnit.Framework;
+using NUnit.Framework.Legacy;
 
 namespace Mapsui.Rendering.Skia.Tests;
 
@@ -52,12 +53,13 @@ public class MapRegressionTests
         ArcGISImageServiceSample.DefaultCache ??= File.ReadFromCacheFolder("ArcGisImageServiceSample");
     }
 
-    public static object[] RegressionSamples => _regressionSamples ??= AllSamples.GetSamples().Where(f => ExcludedSamples.All(e => e.GetType() != f.GetType())).OrderBy(f => f.GetType().FullName).ToArray();
+    public static object[] RegressionSamples => _regressionSamples ??=
+    [
+        .. AllSamples.GetSamples().Where(f => ExcludedSamples
+            .All(e => e.GetType() != f.GetType())).OrderBy(f => f.GetType().FullName),
+    ];
 
-    public static object[] ExcludedSamples => _excludedSamples ??= new ISampleBase[] 
-    {
-        new AnimatedPointsSample()
-    };
+    public static object[] ExcludedSamples => _excludedSamples ??= [new AnimatedPointsSample()];
 
     [Test]
     [Retry(5)]
@@ -68,10 +70,12 @@ public class MapRegressionTests
         try
         {
             Logger.LogDelegate = ConsoleLog;
+            ConsoleLog(LogLevel.Debug, $"Start MapRegressionTest {sample.GetType().Name}", null);
             await TestSampleAsync(sample, true).ConfigureAwait(false);
         }
         finally
         {
+            ConsoleLog(LogLevel.Debug, $"End MapRegressionTest {sample.GetType().Name}", null);
             Logger.LogDelegate = original;
         }
     }
@@ -85,21 +89,23 @@ public class MapRegressionTests
         }
 
         Console.WriteLine(message);
+        Console.Out.Flush();
     }
 
-    public async Task TestSampleAsync(ISampleBase sample, bool compareImages)
+    public static async Task TestSampleAsync(ISampleBase sample, bool compareImages)
     {
         try
         {
             var fileName = sample.GetType().Name + ".Regression.png";
-            var mapControl = await InitMapAsync(sample).ConfigureAwait(true);
+            using var mapControl = await InitMapAsync(sample).ConfigureAwait(true);
             var map = mapControl.Map;
             await DisplayMapAsync(mapControl).ConfigureAwait(false);
 
             if (map != null)
             {
                 // act
-                using var bitmap = CreateMapRenderer(mapControl).RenderToBitmapStream(mapControl.Map.Navigator.Viewport, map.Layers, map.BackColor, 2, map.GetWidgetsOfMapAndLayers());
+                using var mapRenderer = CreateMapRenderer(mapControl);
+                using var bitmap = mapRenderer.RenderToBitmapStream(mapControl.Map.Navigator.Viewport, map.Layers, map.BackColor, 2, map.GetWidgetsOfMapAndLayers());
 
                 // aside
                 if (bitmap is { Length: > 0 })
@@ -121,13 +127,13 @@ public class MapRegressionTests
                     }
                     else
                     {
-                        Assert.IsTrue(MapRendererTests.CompareBitmaps(originalStream, bitmap, 1, 0.99));
+                        ClassicAssert.IsTrue(MapRendererTests.CompareBitmaps(originalStream, bitmap, 1, 0.99));
                     }
                 }
                 else
                 {
                     // Don't compare images here because to unreliable
-                    Assert.True(true);
+                    ClassicAssert.True(true);
                 }
             }
         }
@@ -172,7 +178,7 @@ public class MapRegressionTests
     private static async Task<RegressionMapControl> InitMapAsync(ISampleBase sample)
     {
         var mapControl = new RegressionMapControl();
-        
+
         mapControl.SetSize(800, 600);
 
         if (sample is IPrepareSampleTest prepareTest)
@@ -204,7 +210,7 @@ public class MapRegressionTests
         return mapControl;
     }
 
-    private async Task DisplayMapAsync(IMapControl mapControl)
+    private static async Task DisplayMapAsync(IMapControl mapControl)
     {
         await mapControl.WaitForLoadingAsync().ConfigureAwait(false);
 

@@ -1,11 +1,10 @@
-﻿using Mapsui.Cache;
-using Mapsui.Extensions;
+﻿using Mapsui.Extensions;
 using Mapsui.Layers;
 using Mapsui.Logging;
 using Mapsui.Providers.Wfs;
 using Mapsui.Styles;
 using Mapsui.Tiling;
-using Mapsui.Widgets;
+using Mapsui.Widgets.InfoWidgets;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
@@ -14,7 +13,7 @@ namespace Mapsui.Samples.Common.Maps.DataFormats;
 
 public class WfsSample : ISample
 {
-    public string Name => " 7 WFS";
+    public string Name => "WFS";
     public string Category => "Data Formats";
 
     private const string wfsUri = "https://geoservices1.civis.bz.it/geoserver/p_bz-AdministrativeUnits/ows";
@@ -35,7 +34,7 @@ public class WfsSample : ISample
 
             map.Widgets.Add(new MapInfoWidget(map));
 
-            map.Home = n => n.CenterOnAndZoomTo(new MPoint(1270000.0, 5880000.0), n.Resolutions[9]);
+            map.Navigator.CenterOnAndZoomTo(new MPoint(1270000.0, 5880000.0), map.Navigator.Resolutions[9]);
 
             return map;
 

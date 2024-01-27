@@ -2,6 +2,7 @@
 using Mapsui.Styles;
 using Mapsui.Tiling;
 using Mapsui.Widgets;
+using Mapsui.Widgets.BoxWidgets;
 using System.Threading.Tasks;
 
 namespace Mapsui.Samples.Common.Maps.Widgets;
@@ -13,7 +14,7 @@ public class TextBoxSample : ISample
 
     public Task<Map> CreateMapAsync()
     {
-        var map = new Map();        
+        var map = new Map();
         map.Layers.Add(OpenStreetMap.CreateTileLayer());
 
         map.Widgets.Add(CreateTextBox("Top Right", VerticalAlignment.Top, HorizontalAlignment.Right));
@@ -31,18 +32,16 @@ public class TextBoxSample : ISample
         return Task.FromResult(map);
     }
 
-    private static IWidget CreateTextBox(string text, 
+    private static IWidget CreateTextBox(string text,
         VerticalAlignment verticalAlignment, HorizontalAlignment horizontalAlignment)
     {
-        return new TextBox()
+        return new TextBoxWidget()
         {
             Text = text,
             VerticalAlignment = verticalAlignment,
             HorizontalAlignment = horizontalAlignment,
-            MarginX = 10,
-            MarginY = 10,
-            PaddingX = 4,
-            PaddingY = 4,
+            Margin = new MRect(10),
+            Padding = new MRect(4),
             CornerRadius = 4,
             BackColor = new Color(108, 117, 125),
             TextColor = Color.White,

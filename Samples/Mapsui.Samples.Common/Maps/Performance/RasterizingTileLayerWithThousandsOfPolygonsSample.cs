@@ -13,7 +13,7 @@ using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Mapsui.UI;
 using Mapsui.Widgets;
-using Mapsui.Widgets.ButtonWidget;
+using Mapsui.Widgets.ButtonWidgets;
 using NetTopologySuite.Geometries;
 
 #pragma warning disable IDISP001 // Dispose created
@@ -40,14 +40,14 @@ public sealed class RasterizingTileLayerWithThousandsOfPolygonsSample : IMapCont
         _map.Layers.Add(Tiling.OpenStreetMap.CreateTileLayer());
         _map.Layers.Add(new RasterizingTileLayer(CreatePolygonLayer()));
         var home = Mercator.FromLonLat(0, 0);
-        _map.Home = n => n.CenterOnAndZoomTo(home, _map.Navigator.Resolutions[9]);
-        var buttonWidget = new ButtonWidget
+        _map.Navigator.CenterOnAndZoomTo(home, _map.Navigator.Resolutions[9]);
+        var buttonWidget = new TextButtonWidget
         {
             Text = "Change Color",
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top
         };
-        buttonWidget.WidgetTouched += ChangeColor;
+        buttonWidget.Touched += ChangeColor;
         _map.Widgets.Enqueue(buttonWidget);
 
         return _map;
@@ -87,7 +87,7 @@ public sealed class RasterizingTileLayerWithThousandsOfPolygonsSample : IMapCont
 
         for (int i = 0; i < 900000; i++)
         {
-            factor = i - 100*(int)Math.Round((double)(i / 100));
+            factor = i - 100 * (int)Math.Round((double)(i / 100));
             polygon1 = new Polygon(
                 new LinearRing(new[] {
                     new Coordinate(1000*(factor-1), 1000*(factor-1)-(Math.Round((double)(i/100))*1000)),
@@ -96,7 +96,7 @@ public sealed class RasterizingTileLayerWithThousandsOfPolygonsSample : IMapCont
                     new Coordinate(1000*(factor), 1000*(factor-1)-(Math.Round((double)(i/100))*1000)),
                     new Coordinate(1000*(factor-1), 1000*(factor-1)-(Math.Round((double)(i/100))*1000))
                 }));
-            
+
             result.Add(polygon1);
         }
         return result;

@@ -10,7 +10,7 @@ namespace Mapsui.Samples.Common.Maps.Demo;
 
 public class BingSample : ISample
 {
-    public string Name => "3 Virtual Earth";
+    public string Name => "Virtual Earth";
     public string Category => "Demo";
     public Task<Map> CreateMapAsync()
     {
@@ -27,7 +27,7 @@ public class BingSample : ISample
         {
             Name = "Bing Aerial",
         });
-        map.Home = n => n.CenterOnAndZoomTo(new MPoint(1059114.80157058, 5179580.75916194), n.Resolutions[14]);
+        map.Navigator.CenterOnAndZoomTo(new MPoint(1059114.80157058, 5179580.75916194), map.Navigator.Resolutions[14]);
         map.BackColor = Color.FromString("#000613");
 
         return map;

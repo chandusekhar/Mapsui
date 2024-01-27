@@ -15,7 +15,7 @@ namespace Mapsui.Samples.Common.Maps.Geometries;
 
 public class LineStringSample : ISample
 {
-    public string Name => "2 LineStrings";
+    public string Name => "LineStrings";
     public string Category => "Geometries";
 
     public Task<Map> CreateMapAsync()
@@ -24,7 +24,7 @@ public class LineStringSample : ISample
         map.Layers.Add(OpenStreetMap.CreateTileLayer());
         var lineStringLayer = CreateLineStringLayer(CreateLineStringStyle());
         map.Layers.Add(lineStringLayer);
-        map.Home = n => n.CenterOnAndZoomTo(lineStringLayer.Extent!.Centroid, 200);
+        map.Navigator.CenterOnAndZoomTo(lineStringLayer.Extent!.Centroid, 200);
         return Task.FromResult(map);
     }
 

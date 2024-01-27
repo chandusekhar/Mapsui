@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.XPath;
 using System.Xml.Xsl;
+using Mapsui.Extensions;
 using Mapsui.Logging;
 using Mapsui.Providers.Wfs.Utilities;
 
@@ -194,6 +195,7 @@ public class XPathQueryManager : IXPathQueryManager
         FindXPath(xPath);
         if (_xIter?.MoveNext() ?? false)
             result = _xIter?.Current?.Value;
+
         return result;
     }
 
@@ -278,10 +280,6 @@ public class XPathQueryManager : IXPathQueryManager
         {
             Logger.Log(LogLevel.Error, e.Message, e);
         }
-        finally
-        {
-            httpClientUtil.Close();
-        }
     }
 
     /// <summary>
@@ -356,6 +354,7 @@ public class XPathQueryManager : IXPathQueryManager
         xPath?.SetContext(_paramContext!);
         if (xPath != null)
             _xIter = _xNav?.Select(xPath);
+
         InitializeCustomContext(_paramContext);
     }
 
@@ -495,7 +494,7 @@ public class XPathQueryManager : IXPathQueryManager
                     }
                 }
             }
-                
+
         }
 
         /// <summary>

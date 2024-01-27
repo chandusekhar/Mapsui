@@ -1,11 +1,9 @@
-using System.ComponentModel;
 using CoreFoundation;
 using Mapsui.Logging;
 using Mapsui.UI.iOS.Extensions;
 using Mapsui.Utilities;
 using SkiaSharp.Views.iOS;
-
-#nullable enable
+using System.ComponentModel;
 
 namespace Mapsui.UI.iOS;
 
@@ -16,6 +14,7 @@ public partial class MapControl : UIView, IMapControl
     private SKCanvasView? _canvas;
     private double _virtualRotation;
     private bool _init;
+    private MPoint? _pointerDownPosition;
 
     public static bool UseGPU { get; set; } = true;
 
@@ -41,12 +40,12 @@ public partial class MapControl : UIView, IMapControl
             if (UseGPU)
             {
                 _glCanvas?.Dispose();
-                _glCanvas = new SKGLView();
+                _glCanvas = [];
             }
             else
             {
                 _canvas?.Dispose();
-                _canvas = new SKCanvasView();
+                _canvas = [];
             }
         }
     }
@@ -73,8 +72,8 @@ public partial class MapControl : UIView, IMapControl
             _glCanvas.PaintSurface += OnPaintSurface;
             AddSubview(_glCanvas);
 
-            AddConstraints(new[]
-            {
+            AddConstraints(
+            [
                 NSLayoutConstraint.Create(this, NSLayoutAttribute.Leading, NSLayoutRelation.Equal, _glCanvas,
                     NSLayoutAttribute.Leading, 1.0f, 0.0f),
                 NSLayoutConstraint.Create(this, NSLayoutAttribute.Trailing, NSLayoutRelation.Equal, _glCanvas,
@@ -83,7 +82,7 @@ public partial class MapControl : UIView, IMapControl
                     NSLayoutAttribute.Top, 1.0f, 0.0f),
                 NSLayoutConstraint.Create(this, NSLayoutAttribute.Bottom, NSLayoutRelation.Equal, _glCanvas,
                     NSLayoutAttribute.Bottom, 1.0f, 0.0f)
-            });
+            ]);
         }
         else
         {
@@ -92,8 +91,8 @@ public partial class MapControl : UIView, IMapControl
             _canvas.PaintSurface += OnPaintSurface;
             AddSubview(_canvas);
 
-            AddConstraints(new[]
-            {
+            AddConstraints(
+            [
                 NSLayoutConstraint.Create(this, NSLayoutAttribute.Leading, NSLayoutRelation.Equal, _canvas,
                     NSLayoutAttribute.Leading, 1.0f, 0.0f),
                 NSLayoutConstraint.Create(this, NSLayoutAttribute.Trailing, NSLayoutRelation.Equal, _canvas,
@@ -102,7 +101,7 @@ public partial class MapControl : UIView, IMapControl
                     NSLayoutAttribute.Top, 1.0f, 0.0f),
                 NSLayoutConstraint.Create(this, NSLayoutAttribute.Bottom, NSLayoutRelation.Equal, _canvas,
                     NSLayoutAttribute.Bottom, 1.0f, 0.0f)
-            });
+            ]);
         }
 
         ClipsToBounds = true;
@@ -126,7 +125,6 @@ public partial class MapControl : UIView, IMapControl
 
         Map.Navigator.SetSize(ViewportWidth, ViewportHeight);
     }
-
 
     private void OnDoubleTapped(UITapGestureRecognizer gesture)
     {
@@ -172,8 +170,8 @@ public partial class MapControl : UIView, IMapControl
 
         if (touches.AnyObject is UITouch touch)
         {
-            var position = touch.LocationInView(this).ToMapsui();
-            if (HandleTouching(position, true, 1, false))
+            _pointerDownPosition = touch.LocationInView(this).ToMapsui();
+            if (HandleWidgetPointerDown(_pointerDownPosition, true, 1, false))
             {
                 return;
             }
@@ -189,9 +187,9 @@ public partial class MapControl : UIView, IMapControl
             if (touches.AnyObject is UITouch touch)
             {
                 var position = touch.LocationInView(this).ToMapsui();
-                if (HandleMoving(position, true, 0, false))
+                if (HandleWidgetPointerMove(position, true, 0, false))
                     return;
-                
+
                 var previousPosition = touch.PreviousLocationInView(this).ToMapsui();
                 Map.Navigator.Drag(position, previousPosition);
                 _virtualRotation = Map.Navigator.Viewport.Rotation;
@@ -229,7 +227,7 @@ public partial class MapControl : UIView, IMapControl
         if (touches.AnyObject is UITouch touch)
         {
             var position = touch.LocationInView(this).ToMapsui();
-            if (HandleTouched(position, true, 1, false))
+            if (HandleWidgetPointerUp(position, _pointerDownPosition, true, 1, false))
             {
                 return;
             }
@@ -241,12 +239,12 @@ public partial class MapControl : UIView, IMapControl
     /// </summary>
     /// <param name="point"></param>
     /// <returns></returns>
-    private MPoint GetScreenPosition(CGPoint point)
+    private static MPoint GetScreenPosition(CGPoint point)
     {
         return new MPoint(point.X, point.Y);
     }
 
-    private void RunOnUIThread(Action action)
+    private static void RunOnUIThread(Action action)
     {
         DispatchQueue.MainQueue.DispatchAsync(action);
     }
@@ -295,14 +293,17 @@ public partial class MapControl : UIView, IMapControl
 
     public new void Dispose()
     {
-        IosCommonDispose(true);
-        base.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
-    protected override void Dispose(bool disposing)
+    protected new virtual void Dispose(bool disposing)
     {
-        IosCommonDispose(disposing);
-        base.Dispose(disposing);
+        if (disposing)
+        {
+            IosCommonDispose(disposing);
+            base.Dispose(disposing);
+        }
     }
 
     private void IosCommonDispose(bool disposing)
@@ -321,7 +322,7 @@ public partial class MapControl : UIView, IMapControl
     private static (MPoint centre, double radius, double angle) GetPinchValues(List<MPoint> locations)
     {
         if (locations.Count < 2)
-            throw new ArgumentException();
+            throw new ArgumentException($"Less than two locations were passed into {nameof(GetPinchValues)}");
 
         double centerX = 0;
         double centerY = 0;
@@ -332,8 +333,8 @@ public partial class MapControl : UIView, IMapControl
             centerY += location.Y;
         }
 
-        centerX = centerX / locations.Count;
-        centerY = centerY / locations.Count;
+        centerX /= locations.Count;
+        centerY /= locations.Count;
 
         var radius = Algorithms.Distance(centerX, centerY, locations[0].X, locations[0].Y);
 
@@ -342,44 +343,33 @@ public partial class MapControl : UIView, IMapControl
         return (new MPoint(centerX, centerY), radius, angle);
     }
 
-    private float ViewportWidth
+    private double ViewportWidth
     {
         get
         {
             InitCanvas();
-            if (UseGPU)
-            {
-                return (float)_glCanvas!.Frame.Width;
-            }
-
-            return (float)_canvas!.Frame.Width;
-            // todo: check if we need _canvas
+            return UseGPU
+                ? _glCanvas!.Frame.Width
+                : _canvas!.Frame.Width;
         }
     }
 
-    private float ViewportHeight
+    private double ViewportHeight
     {
         get
         {
             InitCanvas();
-            if (UseGPU)
-            {
-                return (float)_glCanvas!.Frame.Height;
-            }
-
-            return (float)_canvas!.Frame.Height;
-            // todo: check if we need _canvas
+            return UseGPU
+                ? _glCanvas!.Frame.Height
+                : _canvas!.Frame.Height;
         }
     }
 
-    private float GetPixelDensity()
+    private double GetPixelDensity()
     {
         InitCanvas();
-        if (UseGPU)
-        {
-            return (float)_glCanvas!.ContentScaleFactor; // todo: Check if I need canvas    
-        }
-
-        return (float)_canvas!.ContentScaleFactor; // todo: Check if I need canvas
+        return UseGPU
+            ? (double)_glCanvas!.ContentScaleFactor
+            : (double)_canvas!.ContentScaleFactor;
     }
 }

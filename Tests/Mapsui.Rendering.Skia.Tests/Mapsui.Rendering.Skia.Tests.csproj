@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks Condition="'$(SolutionName)' == 'Mapsui.Mac.Legacy'">net48</TargetFrameworks>
-    <TargetFrameworks Condition="'$(SolutionName)' != 'Mapsui.Mac.Legacy'">net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
@@ -393,6 +392,7 @@
     <None Remove="Resources\Images\OriginalRegression\EditingRotateSample.Regression.png" />
     <None Remove="Resources\Images\OriginalRegression\EditingScaleSample.Regression.png" />
     <None Remove="Resources\Images\OriginalRegression\ImageDataSample.Regression.png" />
+    <None Remove="Resources\Images\OriginalRegression\LoggingWidgetSample.Regression.png" />
     <None Remove="Resources\Images\OriginalRegression\ModifyScaleSample.Regression.png" />
     <None Remove="Resources\Images\OriginalRegression\MyLocationLayerSample.Regression.png" />
     <None Remove="Resources\Images\OriginalRegression\PolygonGeometrySample.Regression.png" />

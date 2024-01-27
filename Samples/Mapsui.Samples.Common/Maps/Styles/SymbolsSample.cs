@@ -4,20 +4,9 @@ using Mapsui.Samples.Common.DataBuilders;
 using Mapsui.Styles;
 using Mapsui.Tiling;
 using Mapsui.Utilities;
-using Mapsui.Widgets;
+using Mapsui.Widgets.InfoWidgets;
 using System.Collections.Generic;
 using System.Linq;
-/* Unmerged change from project 'Mapsui.Samples.Common (netstandard2.0)'
-Before:
-using System.Threading.Tasks;
-After:
-using System.Threading.Tasks;
-using Mapsui;
-using Mapsui.Samples;
-using Mapsui.Samples.Common;
-using Mapsui.Samples.Common.Maps;
-using Mapsui.Samples.Common.Maps.Styles;
-*/
 using System.Threading.Tasks;
 
 namespace Mapsui.Samples.Common.Maps.Styles;

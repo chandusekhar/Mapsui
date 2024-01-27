@@ -1,34 +1,20 @@
-﻿using Mapsui.Samples.Common;
-using Mapsui.Samples.Common.Maps;
+﻿using Mapsui.Extensions;
+using Mapsui.Samples.Common;
+using Mapsui.Samples.Common.Maps.Demo;
+using Mapsui.Styles;
 using Mapsui.UI;
+using Mapsui.UI.Maui;
+using Mapsui.Utilities;
+using Mapsui.Widgets.InfoWidgets;
+using Microsoft.Maui.Graphics;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
-using Mapsui.Extensions;
-using Mapsui.Samples.Common.Maps.Demo;
-using Mapsui.Styles;
-using Mapsui.Utilities;
-using Mapsui.Widgets.PerformanceWidget;
-#if __MAUI__
-using Mapsui.UI.Maui;
-using Microsoft.Maui.Graphics;
-using Mapsui.UI.Maui.Utils;
 using Color = Microsoft.Maui.Graphics.Color;
 using KnownColor = Mapsui.UI.Maui.KnownColor;
-#else
-using Mapsui.UI.Forms;
-using Xamarin.Forms;
-using Mapsui.UI.Forms.Utils;
-using Color = Xamarin.Forms.Color;
-using KnownColor = Xamarin.Forms.Color;
-#endif
 
-#if __MAUI__
 namespace Mapsui.Samples.Maui;
-#else
-namespace Mapsui.Samples.Forms;
-#endif
 
 public class ManyPinsSample : IMapViewSample
 {
@@ -134,7 +120,7 @@ public class ManyPinsSample : IMapViewSample
 
         var widget = new PerformanceWidget(mapControl.Performance);
 
-        widget.WidgetTouched += (sender, args) =>
+        widget.Touched += (sender, args) =>
         {
             mapControl?.Performance.Clear();
             mapControl?.RefreshGraphics();
@@ -143,7 +129,7 @@ public class ManyPinsSample : IMapViewSample
         };
 
         mapControl.Map.Widgets.Add(widget);
-        mapControl.Renderer.WidgetRenders[typeof(PerformanceWidget)] = new Rendering.Skia.SkiaWidgets.PerformanceWidgetRenderer(10, 10, 12, SkiaSharp.SKColors.Black, SkiaSharp.SKColors.White);
+        mapControl.Renderer.WidgetRenders[typeof(PerformanceWidget)] = new Rendering.Skia.SkiaWidgets.PerformanceWidgetRenderer();
 
         ((MapView)mapControl).UseDoubleTap = true;
         ((MapView)mapControl).UniqueCallout = true;

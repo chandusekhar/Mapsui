@@ -11,7 +11,7 @@ namespace Mapsui.Samples.Common.Maps.Demo;
 
 public class SingleImageSample : ISample
 {
-    public string Name => "14 Single Image";
+    public string Name => "Single Image";
     public string Category => "Data Formats";
 
     static SingleImageSample()
@@ -33,7 +33,7 @@ public class SingleImageSample : ISample
         map.Layers.Add(OpenStreetMap.CreateTileLayer());
         var extentOfImage = new MRect(8766409.899970189, 626172.1357121579, 9392582.035682343, 1252344.2714243121);
         map.Layers.Add(CreateLayerWithRasterFeature(extentOfImage));
-        map.Home = (n) => n.ZoomToBox(extentOfImage.Grow(extentOfImage.Width * 0.5));
+        map.Navigator.ZoomToBox(extentOfImage.Grow(extentOfImage.Width * 0.5));
         return map;
     }
 
@@ -45,6 +45,12 @@ public class SingleImageSample : ISample
         var bytes = fileStream.ToBytes();
         // Note that currently a RasterStyle is necessary for the feature to show up.
         var rasterFeature = new RasterFeature(new MRaster(bytes, extent)) { Styles = { new RasterStyle() } };
-        return new MemoryLayer() { Features = new List<RasterFeature> { rasterFeature }, Name = "Raster Image", Opacity = 0.9 };
+        return new MemoryLayer()
+        {
+            Features = new List<RasterFeature> { rasterFeature },
+            Name = "Raster Image",
+            Opacity = 0.9,
+            Style = null,
+        };
     }
 }

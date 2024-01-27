@@ -15,7 +15,7 @@ public static class PointExtensions
     /// <param name="clipRect">Rectangle to clip to. All lines outside aren't drawn.</param>
     /// <param name="strokeWidth">stroke Width</param>
     /// <returns></returns>
-    public static SKPath ToSkiaPath(this Point point, Viewport viewport, SKRect clipRect, float strokeWidth) 
+    public static SKPath ToSkiaPath(this Point point, Viewport viewport, SKRect clipRect, float strokeWidth)
     {
         var width = (float)SymbolStyle.DefaultWidth;
         var halfWidth = width / 2;
@@ -23,7 +23,7 @@ public static class PointExtensions
         var transformed = points[0];
 
         var skPath = new SKPath();
-        skPath.AddCircle(Convert.ToSingle(transformed.X), Convert.ToSingle(transformed.Y), halfWidth);
+        skPath.AddCircle(transformed.X, transformed.Y, halfWidth);
 
         return skPath;
     }

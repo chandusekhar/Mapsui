@@ -1,4 +1,6 @@
 ﻿using Mapsui.Layers;
+using Mapsui.Nts;
+using Mapsui.Nts.Extensions;
 using Mapsui.Projections;
 using Mapsui.Styles;
 using Mapsui.Tiling;
@@ -27,11 +29,11 @@ public class KeepCenterInMapSample : ISample
 
         map.Navigator.OverridePanBounds = panBounds;
         map.Navigator.OverrideZoomBounds = new MMinMax(0.15, 2500);
-        map.Home = n => n.ZoomToBox(panBounds);
+        map.Navigator.ZoomToBox(panBounds);
 
         return Task.FromResult(map);
     }
-        
+
     private static MRect GetLimitsOfMadagaskar()
     {
         var (minX, minY) = SphericalMercator.FromLonLat(41.8, -27.2);
@@ -44,7 +46,7 @@ public class KeepCenterInMapSample : ISample
         // This layer is only for visualizing the pan bounds. It is not needed for the limiter.
         return new MemoryLayer("PanBounds")
         {
-            Features = new[] { new RectFeature(panBounds) },
+            Features = new[] { new GeometryFeature(panBounds.ToPolygon()) },
             Style = new VectorStyle() { Fill = null, Outline = new Pen(Color.Red, 3) { PenStyle = PenStyle.Dot } }
         };
     }

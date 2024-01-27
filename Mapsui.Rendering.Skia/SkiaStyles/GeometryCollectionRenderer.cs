@@ -1,34 +1,44 @@
 ﻿using System;
-using Mapsui.Layers;
-using Mapsui.Nts;
+using Mapsui.Extensions;
 using Mapsui.Rendering.Skia.Extensions;
 using Mapsui.Styles;
 using NetTopologySuite.Geometries;
 using SkiaSharp;
 
-#pragma warning disable IDISP001 // Dispose created
-
 namespace Mapsui.Rendering.Skia.SkiaStyles;
 
 public static class GeometryCollectionRenderer
 {
-    public static void Draw(SKCanvas canvas, Viewport viewport, ILayer layer, VectorStyle? vectorStyle, IFeature feature,
-        GeometryCollection collection, float opacity, IVectorCache vectorCache)
+    public static void Draw(
+        SKCanvas canvas,
+        Viewport viewport,
+        VectorStyle? vectorStyle,
+        IFeature feature,
+        GeometryCollection collection,
+        float opacity,
+        IVectorCache<SKPath, SKPaint> vectorCache)
     {
+        SKPath ToPath((GeometryCollection collection, IFeature feature, Viewport viewport, float lineWidth) valueTuple)
+        {
+            var result = collection.ToSkiaPath(valueTuple.viewport, valueTuple.viewport.ToSkiaRect(), valueTuple.lineWidth);
+            return result;
+        }
+
         if (vectorStyle == null)
             return;
 
-        var paint = vectorCache.GetOrCreatePaint<SKPaint, Pen>(vectorStyle.Outline, opacity, PolygonRenderer.CreateSkPaint);
-        var paintFill = vectorCache.GetOrCreatePaint<SKPaint>(vectorStyle.Fill, opacity, viewport.Rotation, PolygonRenderer.CreateSkPaint);
-
-        float lineWidth = Convert.ToSingle(vectorStyle.Outline?.Width ?? 1);
-        var path = vectorCache.GetOrCreatePath(viewport, feature, collection, lineWidth,
-            (collection, viewport, lineWidth) =>
+        float lineWidth = (float)(vectorStyle.Outline?.Width ?? 1f);
+        using var path = vectorCache.GetOrCreatePath((collection, feature, viewport, lineWidth), ToPath);
+        if (vectorStyle.Fill.IsVisible())
         {
-            var skRect = vectorCache.GetOrCreatePath(viewport, ViewportExtensions.ToSkiaRect);
-            return collection.ToSkiaPath(viewport, skRect, lineWidth);
-        });
+            using var paintFill = vectorCache.GetOrCreatePaint((vectorStyle.Fill, opacity, viewport.Rotation), PolygonRenderer.CreateSkPaint);
+            PolygonRenderer.DrawPath(canvas, vectorStyle, path, paintFill);
+        }
 
-        PolygonRenderer.DrawPath(canvas, vectorStyle, path, paintFill, paint);
+        if (vectorStyle.Outline.IsVisible())
+        {
+            using var paint = vectorCache.GetOrCreatePaint((vectorStyle.Outline, opacity), PolygonRenderer.CreateSkPaint);
+            canvas.DrawPath(path, paint);
+        }
     }
 }

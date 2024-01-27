@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using Mapsui.Cache;
+﻿using Mapsui.Extensions;
 using Mapsui.Layers;
 using Mapsui.Logging;
 using Mapsui.Providers.Wfs;
 using Mapsui.Styles;
+using Mapsui.Widgets.InfoWidgets;
 using System.Net;
 using System.Threading.Tasks;
-using Mapsui.Limiting;
-using Mapsui.Nts;
-using Mapsui.Widgets;
-using Mapsui.Extensions;
 
 #pragma warning disable IDISP001 // Dispose created
 
@@ -18,7 +13,7 @@ namespace Mapsui.Samples.Common.Maps.DataFormats;
 
 public class WfsPointsSample : ISample
 {
-    public string Name => " 7 WFS Points";
+    public string Name => "WFS Points";
     public string Category => "Data Formats";
 
     private const string crs = "EPSG:31254";
@@ -42,7 +37,7 @@ public class WfsPointsSample : ISample
 
             map.Navigator.OverridePanBounds = bbox;
             map.Navigator.PanLock = true;
-            map.Navigator.ZoomToPanBounds(); 
+            map.Navigator.ZoomToPanBounds();
 
             return map;
 
@@ -69,11 +64,11 @@ public class WfsPointsSample : ISample
         var provider = await WFSProvider.CreateAsync(
             "https://vogis.cnv.at/geoserver/vogis/laser_2002_04_punkte/ows",
             "vogis",
-            "laser_2002_04_punkte", 
+            "laser_2002_04_punkte",
             WFSProvider.WFSVersionEnum.WFS_1_1_0);
 
         provider.CRS = crs;
-        provider.AxisOrder = new []{0,1};
+        provider.AxisOrder = new[] { 0, 1 };
 
         await provider.InitAsync();
 
