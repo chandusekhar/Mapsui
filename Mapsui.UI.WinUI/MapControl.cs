@@ -2,56 +2,67 @@
 // The Mapsui authors licensed this file under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-// This file was originally created by Paul den Dulk (Geodan) as part of SharpMap
-
 using Mapsui.Extensions;
 using Mapsui.Logging;
+using Mapsui.Manipulations;
 using Mapsui.UI.WinUI.Extensions;
-using Mapsui.Utilities;
 using Microsoft.UI;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using SkiaSharp.Views.Windows;
-using System;
 using Windows.Devices.Sensors;
 using Windows.Foundation;
 using Windows.System;
+#if __WINUI__
+// for fixing the Linux build this pragma disable is needed some tooling issue.
+#pragma warning disable IDE0005 // Using directive is unnecessary.
+using System;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml;
+#endif
 
 namespace Mapsui.UI.WinUI;
 
 public partial class MapControl : Grid, IMapControl, IDisposable
 {
+    // GPU does not work currently on Windows
+    public static bool UseGPU = OperatingSystem.IsBrowser() || OperatingSystem.IsAndroid(); // Works not on iPhone Mini;
+#pragma warning disable IDISP002 // These should not be disposed here in WINUI they are not disposable and in UNO They shouldn't be disposed
+    private readonly SKSwapChainPanel? _canvasGpu;
     private readonly Rectangle _selectRectangle = CreateSelectRectangle();
-    private readonly SKXamlCanvas _canvas = CreateRenderTarget();
-    private double _virtualRotation;
-    private MPoint? _pointerDownPosition;
+    private readonly SKXamlCanvas? _canvas;
+#pragma warning restore IDISP002    
+
     bool _shiftPressed;
 
     public MapControl()
     {
-        CommonInitialize();
-        Initialize();
-    }
+        SharedConstructor();
 
-    private void Initialize()
-    {
-        _invalidate = () =>
-        {
-            // The commented out code crashes the app when MouseWheelAnimation.Duration > 0. Could be a bug in SKXamlCanvas
-            //if (Dispatcher.HasThreadAccess) _canvas?.Invalidate();
-            //else RunOnUIThread(() => _canvas?.Invalidate());
-            RunOnUIThread(() => _canvas?.Invalidate());
-        };
+        // The commented out code crashes the app when MouseWheelAnimation.Duration > 0. Could be a bug in SKXamlCanvas
+        //if (Dispatcher.HasThreadAccess) _canvas?.Invalidate();
+        //else RunOnUIThread(() => _canvas?.Invalidate());
 
         Background = new SolidColorBrush(Colors.White); // DON'T REMOVE! Touch events do not work without a background
 
-        Children.Add(_canvas);
-        Children.Add(_selectRectangle);
+        if (UseGPU)
+        {
+            _canvasGpu = CreateGpuRenderTarget();
+            _invalidate = () => RunOnUIThread(() => _canvasGpu.Invalidate());
+            Children.Add(_canvasGpu);
+            _canvasGpu.PaintSurface += CanvasGpu_PaintSurface;
+        }
+        else
+        {
+            _canvas = CreateRenderTarget();
+            _invalidate = () => RunOnUIThread(() => _canvas.Invalidate());
+            Children.Add(_canvas);
+            _canvas.PaintSurface += Canvas_PaintSurface;
+        }
 
-        _canvas.PaintSurface += Canvas_PaintSurface;
+        Children.Add(_selectRectangle);
 
         Loaded += MapControlLoaded;
 
@@ -59,15 +70,14 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
         ManipulationMode = ManipulationModes.Scale | ManipulationModes.TranslateX | ManipulationModes.TranslateY | ManipulationModes.Rotate;
 
-        // Pointer events        
-        ManipulationStarted += OnManipulationStarted;
+        ManipulationInertiaStarting += OnManipulationInertiaStarting;
         ManipulationDelta += OnManipulationDelta;
         ManipulationCompleted += OnManipulationCompleted;
-        ManipulationInertiaStarting += OnManipulationInertiaStarting;
-        Tapped += OnSingleTapped;
-        PointerPressed += MapControl_PointerDown;
-        DoubleTapped += OnDoubleTapped;
+
+        PointerPressed += MapControl_PointerPressed;
         PointerMoved += MapControl_PointerMoved;
+        PointerReleased += MapControl_PointerReleased;
+
         PointerWheelChanged += MapControl_PointerWheelChanged;
 
         KeyDown += MapControl_KeyDown;
@@ -97,48 +107,42 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     private void OnManipulationCompleted(object sender, ManipulationCompletedRoutedEventArgs e)
     {
         RefreshData();
-        Console.WriteLine(Guid.NewGuid());
     }
 
-    private void OnManipulationStarted(object sender, ManipulationStartedRoutedEventArgs e)
+    private void MapControl_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        _virtualRotation = Map.Navigator.Viewport.Rotation;
-    }
+        var position = e.GetCurrentPoint(this).Position.ToScreenPosition();
 
-    private void MapControl_PointerDown(object sender, PointerRoutedEventArgs e)
-    {
-        _pointerDownPosition = e.GetCurrentPoint(this).Position.ToMapsui();
+        if (OnMapPointerPressed([position]))
+            return;
     }
 
     private void MapControl_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        var position = e.GetCurrentPoint(this).Position.ToMapsui();
-        if (HandleWidgetPointerMove(position, true, 0, e.KeyModifiers == VirtualKeyModifiers.Shift))
-            e.Handled = true;
+        // This is a bit weird. The OnManipulationDelta event fires on both touch and mouse events
+        // and deals with both properly, except for mouse hover events. This handler only deals with
+        // hover events.
+        if (!IsHovering(e))
+            return;
+        var position = e.GetCurrentPoint(this).Position.ToScreenPosition();
+
+        if (OnMapPointerMoved([position], true)) // Only for hover events
+            return;
+
+        RefreshGraphics(); // Todo: Figure out if we really need to refresh the graphics here. It might be better to only do this when the map is actually changed. In that case it should perhaps be done  in the users handler to OnMapPointerMoved
     }
 
-    private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void MapControl_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        var tapPosition = e.GetPosition(this).ToMapsui();
-        if (HandleTouchingTouched(tapPosition, _pointerDownPosition, true, 2, _shiftPressed))
-        {
-            e.Handled = true;
-            return;
-        }
-
-        OnInfo(CreateMapInfoEventArgs(tapPosition, tapPosition, 2));
+        var position = e.GetCurrentPoint(this).Position.ToScreenPosition();
+        OnMapPointerReleased([position]);
     }
 
-    private void OnSingleTapped(object sender, TappedRoutedEventArgs e)
+    private bool IsHovering(PointerRoutedEventArgs e)
     {
-        var tabPosition = e.GetPosition(this).ToMapsui();
-        if (HandleTouchingTouched(tabPosition, _pointerDownPosition, true, 1, _shiftPressed))
-        {
-            e.Handled = true;
-            return;
-        }
-
-        OnInfo(CreateMapInfoEventArgs(tabPosition, tabPosition, 1));
+        if (e.Pointer.PointerDeviceType == PointerDeviceType.Touch)
+            return false;
+        return !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed;
     }
 
     private static Rectangle CreateSelectRectangle()
@@ -168,13 +172,22 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         };
     }
 
+    private static SKSwapChainPanel CreateGpuRenderTarget()
+    {
+        return new SKSwapChainPanel
+        {
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(Colors.Transparent)
+        };
+    }
+
     private void MapControl_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
-        var currentPoint = e.GetCurrentPoint(this);
-        var currentMousePosition = new MPoint(currentPoint.Position.X, currentPoint.Position.Y);
-        var mouseWheelDelta = currentPoint.Properties.MouseWheelDelta;
+        var mousePointerPoint = e.GetCurrentPoint(this);
+        var mouseWheelDelta = mousePointerPoint.Properties.MouseWheelDelta;
 
-        Map.Navigator.MouseWheelZoom(mouseWheelDelta, currentMousePosition);
+        Map.Navigator.MouseWheelZoom(mouseWheelDelta, mousePointerPoint.ToScreenPosition());
 
         e.Handled = true;
     }
@@ -217,6 +230,18 @@ public partial class MapControl : Grid, IMapControl, IDisposable
         CommonDrawControl(canvas);
     }
 
+    private void CanvasGpu_PaintSurface(object? sender, SKPaintGLSurfaceEventArgs e)
+    {
+        if (PixelDensity <= 0)
+            return;
+
+        var canvas = e.Surface.Canvas;
+
+        canvas.Scale(PixelDensity, PixelDensity);
+
+        CommonDrawControl(canvas);
+    }
+
     private static void OnManipulationInertiaStarting(object sender, ManipulationInertiaStartingRoutedEventArgs e)
     {
         e.TranslationBehavior.DesiredDeceleration = 25 * 96.0 / (1000.0 * 1000.0);
@@ -224,28 +249,23 @@ public partial class MapControl : Grid, IMapControl, IDisposable
 
     private void OnManipulationDelta(object sender, ManipulationDeltaRoutedEventArgs e)
     {
-        var center = e.Position.ToMapsui();
-        var radius = e.Delta.Scale;
-        var rotation = e.Delta.Rotation;
+        var manipulation = ToManipulation(e);
 
-        var previousCenter = e.Position.ToMapsui().Offset(-e.Delta.Translation.X, -e.Delta.Translation.Y);
-        var previousRadius = 1f;
+        if (OnMapPointerMoved([manipulation.Center]))
+            return;
 
-        double rotationDelta = 0;
-
-        if (Map.Navigator.RotationLock == false)
-        {
-            _virtualRotation += rotation;
-
-            rotationDelta = RotationCalculations.CalculateRotationDeltaWithSnapping(
-                _virtualRotation, Map.Navigator.Viewport.Rotation, _unSnapRotationDegrees, _reSnapRotationDegrees);
-        }
-
-        Map.Navigator.Pinch(center, previousCenter, radius / previousRadius, rotationDelta);
-        e.Handled = true;
+        Map.Navigator.Manipulate(ToManipulation(e));
+        RefreshGraphics();
     }
 
-    public void OpenBrowser(string url)
+    private Manipulation ToManipulation(ManipulationDeltaRoutedEventArgs e)
+    {
+        var previousCenter = TransformToVisual(this).Inverse.TransformPoint(e.Position).ToScreenPosition();
+        var center = previousCenter.Offset(e.Delta.Translation.X, e.Delta.Translation.Y);
+        return new Manipulation(center, previousCenter, e.Delta.Scale, e.Delta.Rotation, e.Cumulative.Rotation);
+    }
+
+    public void OpenInBrowser(string url)
     {
         Catch.TaskRun(async () => await Launcher.LaunchUriAsync(new Uri(url)));
     }
@@ -253,48 +273,67 @@ public partial class MapControl : Grid, IMapControl, IDisposable
     private double ViewportWidth => ActualWidth;
     private double ViewportHeight => ActualHeight;
 
-    private double GetPixelDensity() => XamlRoot?.RasterizationScale ?? 1d;
-
-#if __ANDROID__
-    protected override void Dispose(bool disposing)
-#elif __IOS__ || __MACOS__
-    protected new virtual void Dispose(bool disposing)
-#else
-    protected virtual void Dispose(bool disposing)
-#endif
+    private double GetPixelDensity()
     {
-        if (disposing)
-        {
-#if HAS_UNO   
-#if  __WINUI__
-#pragma warning disable IDISP023 // Don't use reference types in finalizer context
-#endif
+        if (UseGPU)
+            return _canvasGpu!.CanvasSize.Width / _canvasGpu.ActualWidth;
 
-            _canvas?.Dispose();
-            _selectRectangle?.Dispose();
-#endif
-#if HAS_UNO || __WINUI__
-            _invalidateTimer?.Dispose();
-#endif
-            _map?.Dispose();
-
-        }
-        CommonDispose(disposing);
-
-#if __ANDROID__ || __IOS__ || __MACOS__
-        base.Dispose(disposing);
-#endif
+        return _canvas!.CanvasSize.Width / _canvas.ActualWidth;
     }
 
-#if !(__ANDROID__ )
-#if __IOS__ || __MACOS__ || HAS_UNO
-    public new void Dispose()
-#else 
+    private bool GetShiftPressed() => _shiftPressed;
+
+#if !HAS_UNO
+    protected virtual void Dispose(bool disposing)
+    {
+        CommonDispose(disposing);
+    }
+
     public void Dispose()
-#endif
     {
         Dispose(true);
         GC.SuppressFinalize(this);
+    }
+#elif HAS_UNO && __IOS__ // on ios don't dispose _canvas, _canvasGPU, _selectRectangle, base class 
+    protected new virtual void Dispose(bool disposing)
+    {
+        CommonDispose(disposing);
+    }
+
+    public new void Dispose()
+    {
+        GC.SuppressFinalize(this);
+    }
+#else
+#if __ANDROID__
+    protected new virtual void Dispose(bool disposing)
+    {
+        CommonUnoDispose(disposing);
+        CommonDispose(disposing);
+        base.Dispose(disposing);
+    }
+#else
+    protected virtual void Dispose(bool disposing)
+    {
+        CommonUnoDispose(disposing);
+        CommonDispose(disposing);
+        base.Dispose();
+    }
+#endif
+    public new void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void CommonUnoDispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _canvas?.Dispose();
+            _canvasGpu?.Dispose();
+            _selectRectangle?.Dispose();
+        }
     }
 #endif
 }

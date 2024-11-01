@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
     <DefineConstants>__MAUI__</DefineConstants>
@@ -15,23 +14,18 @@
 
   <ItemGroup>
     <Compile Remove="EventArgs\**" />
-    <Compile Remove="Extensions\**" />
     <Compile Remove="Images\**" />
     <Compile Remove="Objects\**" />
     <EmbeddedResource Remove="EventArgs\**" />
-    <EmbeddedResource Remove="Extensions\**" />
     <EmbeddedResource Remove="Images\**" />
     <EmbeddedResource Remove="Objects\**" />
     <MauiCss Remove="EventArgs\**" />
-    <MauiCss Remove="Extensions\**" />
     <MauiCss Remove="Images\**" />
     <MauiCss Remove="Objects\**" />
     <MauiXaml Remove="EventArgs\**" />
-    <MauiXaml Remove="Extensions\**" />
     <MauiXaml Remove="Images\**" />
     <MauiXaml Remove="Objects\**" />
     <None Remove="EventArgs\**" />
-    <None Remove="Extensions\**" />
     <None Remove="Images\**" />
     <None Remove="Objects\**" />
   </ItemGroup>
@@ -39,28 +33,11 @@
   <ItemGroup>
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.Views.Maui.Controls" />
-    <PackageReference Include="SkiaSharp.Views.Maui.Controls.Compatibility" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)'=='net6.0'">
-    <Reference Include="Microsoft.Maui" HintPath="..\WorkLoad\net6.0\Maui\Microsoft.Maui.dll">
-      <SpecificVersion>False</SpecificVersion>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Microsoft.Maui.Controls" HintPath="..\WorkLoad\net6.0\Maui\Microsoft.Maui.Controls.dll">
-      <SpecificVersion>False</SpecificVersion>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Microsoft.Maui.Essentials" HintPath="..\WorkLoad\net6.0\Maui\Microsoft.Maui.Essentials.dll">
-      <SpecificVersion>False</SpecificVersion>
-      <Private>false</Private>
-    </Reference>
-    <PackageReference Include="Microsoft.Maui.Graphics" VersionOverride="6.0.501" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)'=='net8.0'">
-    <PackageReference Include="Microsoft.Maui.Controls" VersionOverride="[$(MauiVersion),9.0.0)" />
-    <PackageReference Include="Microsoft.Maui.Controls.Compatibility" VersionOverride="[$(MauiVersion),9.0.0)" />
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" VersionOverride="$(MauiVersion)" />
+    <PackageReference Include="Microsoft.Maui.Controls.Compatibility" VersionOverride="$(MauiVersion)" />
   </ItemGroup>
 
   <ItemGroup>

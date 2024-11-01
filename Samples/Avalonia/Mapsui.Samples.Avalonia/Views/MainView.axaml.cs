@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -6,8 +5,9 @@ using Avalonia.Input;
 using Mapsui.Extensions;
 using Mapsui.Samples.Common;
 using Mapsui.Samples.Common.Extensions;
-using Mapsui.Samples.CustomWidget;
+
 using Mapsui.Tiling;
+using Mapsui.Samples.Common.Maps.Widgets;
 
 namespace Mapsui.Samples.Avalonia.Views;
 
@@ -15,8 +15,8 @@ public partial class MainView : UserControl
 {
     static MainView()
     {
-        // todo: find proper way to load assembly
-        Mapsui.Tests.Common.Utilities.LoadAssembly();
+        Mapsui.Tests.Common.Samples.Register();
+        Mapsui.Samples.Common.Samples.Register();
     }
 
     public MainView()
@@ -30,9 +30,7 @@ public partial class MainView : UserControl
 
         MapControl.Map.Layers.Add(OpenStreetMap.CreateTileLayer());
         MapControl.Map.Navigator.RotationLock = false;
-        MapControl.UnSnapRotationDegrees = 30;
-        MapControl.ReSnapRotationDegrees = 5;
-        MapControl.Renderer.WidgetRenders[typeof(CustomWidget.CustomWidget)] = new CustomWidgetSkiaRenderer();
+        MapControl.Renderer.WidgetRenders[typeof(CustomWidget)] = new CustomWidgetSkiaRenderer();
 
         RotationSlider.PointerMoved += RotationSliderOnPointerMoved;
 
@@ -44,7 +42,8 @@ public partial class MainView : UserControl
 
     private void FillComboBoxWithCategories()
     {
-        Tests.Common.Utilities.LoadAssembly();
+        Common.Samples.Register();
+        Tests.Common.Samples.Register();
 
         var categories = AllSamples.GetSamples().Select(s => s.Category).Distinct().OrderBy(c => c).ToArray();
 
@@ -81,7 +80,7 @@ public partial class MainView : UserControl
         {
             Catch.Exceptions(async () =>
             {
-                MapControl.Map?.Layers.Clear();
+                MapControl.Map?.Layers.ClearAllGroups();
                 await sample.SetupAsync(MapControl);
                 MapControl.Refresh();
             });

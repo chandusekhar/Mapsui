@@ -1,53 +1,52 @@
 ﻿using System;
 using Mapsui.Cache;
-using SkiaSharp;
 
 namespace Mapsui.Rendering.Skia.Cache;
 
-public sealed class VectorCache(ISymbolCache symbolCache, int capacity) : IVectorCache<SKPath, SKPaint>
+public sealed class VectorCache(IRenderService renderService, int capacity) : IDisposable
 {
-    private readonly LruCache<object, CacheHolder<SKPaint>> _paintCache = new(Math.Min(capacity, 1));
-    private readonly LruCache<object, CacheHolder<SKPath>> _pathParamCache = new(Math.Min(capacity, 1));
+    private readonly LruCache<object, ICacheHolder> _cache = new(Math.Min(capacity, 1));
 
-    public CacheTracker<SKPaint> GetOrCreatePaint<TParam>(TParam param, Func<TParam, SKPaint> toPaint)
+    public bool Enabled { get; set; } = true;
+
+    public CacheTracker<TPaint> GetOrCreate<TParam, TPaint>(TParam param, Func<TParam, TPaint> toPaint)
         where TParam : notnull
+        where TPaint : class
     {
-        var holder = _paintCache.GetOrCreateValue(param, f =>
+        if (Enabled == false)
+            return new CacheTracker<TPaint>(toPaint(param));
+
+#pragma warning disable IDISP001
+        var holder = _cache.GetOrCreateValue(param, f =>
         {
             var paint = toPaint(f);
-            return new CacheHolder<SKPaint>(paint);
+            return new CacheHolder<TPaint>(paint);
         });
+#pragma warning restore IDISP001
 
-        return holder?.Get<SKPaint>() ?? new CacheTracker<SKPaint>(toPaint(param));
+        return holder?.Get<TPaint>() ?? new CacheTracker<TPaint>(toPaint(param));
     }
 
-    public CacheTracker<SKPaint> GetOrCreatePaint<TParam>(TParam param, Func<TParam, ISymbolCache, SKPaint> toPaint)
+    public CacheTracker<TPaint> GetOrCreate<TParam, TPaint>(TParam param, Func<TParam, IRenderService, TPaint> toPaint)
         where TParam : notnull
+        where TPaint : class
     {
-        var holder = _paintCache.GetOrCreateValue(param, f =>
-        {
-            var paint = toPaint(f, symbolCache);
-            return new CacheHolder<SKPaint>(paint);
-        });
-        
-        return holder?.Get<SKPaint>() ?? new CacheTracker<SKPaint>(toPaint(param, symbolCache));
-    }
+        if (Enabled == false)
+            return new CacheTracker<TPaint>(toPaint(param, renderService));
 
-    public CacheTracker<SKPath> GetOrCreatePath<TParam>(TParam param, Func<TParam, SKPath> toPath)
-        where TParam : notnull
-    {
-        var holder = _pathParamCache.GetOrCreateValue(param, f =>
+#pragma warning disable IDISP001
+        var holder = _cache.GetOrCreateValue(param, f =>
         {
-            var path = toPath(f);
-            return new CacheHolder<SKPath>(path);
+            var paint = toPaint(f, renderService);
+            return new CacheHolder<TPaint>(paint);
         });
-        
-        return holder?.Get<SKPath>() ?? new CacheTracker<SKPath>(toPath(param));
+
+#pragma warning restore IDISP001
+        return holder?.Get<TPaint>() ?? new CacheTracker<TPaint>(toPaint(param, renderService));
     }
 
     public void Dispose()
     {
-        _pathParamCache.Clear();
-        _paintCache.Clear();
+        _cache.Clear();
     }
 }
