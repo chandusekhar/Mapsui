@@ -20,6 +20,21 @@ jobs:
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        # this might remove tools that are actually needed,
+        # if set to "true" but frees about 6 GB
+        tool-cache: false
+        
+        # all of these default to true, but feel free to set to
+        # "false" if necessary for your workflow
+        android: false
+        dotnet: false
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: false
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0              
@@ -30,18 +45,18 @@ jobs:
         path: |
            ~/.nuget/packages/*
            !/.nuget/packages/Mapsui*    
-        key: ${{ runner.os }}-nuget19-${{ hashFiles('Directory.Packages.props') }}
+        key: ${{ runner.os }}-nuget20-${{ hashFiles('Directory.Packages.props') }}
         restore-keys: |
-            ${{ runner.os }}-nuget19-
+            ${{ runner.os }}-nuget20-
     - name: Setup NuGet.exe for use with actions
       uses: NuGet/setup-nuget@v2  
       with:
         nuget-version: latest    
-    - name: Setup .NET 8 SDK
+    - name: Setup .NET 9 SDK
       uses: actions/setup-dotnet@v4
       with:
          dotnet-version: |
-           8.0.x     
+           9.0.x     
     # Open JDK
     - name: Install Open JDK 11
       uses: actions/setup-java@v4
@@ -53,8 +68,8 @@ jobs:
       uses: android-actions/setup-android@v3
       with:
          cmdline-tools-version: '8512546'
-    - name: Install workloads
-      run: dotnet workload install android wasm-tools maui-android
+    - name: Install workloads android wasm-tools wasm-tools-net8 maui-android
+      run: dotnet workload install android wasm-tools wasm-tools-net8 maui-android
     - name: Install Uno Check
       run: dotnet tool install -g Uno.Check
     - name: Uno Check
@@ -93,9 +108,9 @@ jobs:
         path: |
            ~/.nuget/packages/*
            !/.nuget/packages/Mapsui*
-        key: ${{ runner.os }}-nuget19-${{ hashFiles('Directory.Packages.props') }}
+        key: ${{ runner.os }}-nuget20-${{ hashFiles('Directory.Packages.props') }}
         restore-keys: |
-            ${{ runner.os }}-nuget19-
+            ${{ runner.os }}-nuget20-
     - name: Setup NuGet.exe for use with actions
       uses: NuGet/setup-nuget@v2   
       with:
@@ -103,20 +118,15 @@ jobs:
     - name: Set up Xcode 16
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: '16'
-    - name: Setup .NET 6 SDK
+        xcode-version: '16'          
+    # .Net 9 update     
+    - name: Setup .NET 9 SDK
       uses: actions/setup-dotnet@v4
       with:
          dotnet-version: |
-           6.0.x         
-    # .Net 7 update     
-    - name: Setup .NET 8 SDK
-      uses: actions/setup-dotnet@v4
-      with:
-         dotnet-version: |
-           8.0.x         
-    - name: install maui macos android ios maccatalyst wasm-tools
-      run: dotnet workload install maui macos android ios maccatalyst wasm-tools
+           9.0.x         
+    - name: install maui macos android ios maccatalyst wasm-tools wasm-tools-net8
+      run: dotnet workload install maui macos android ios maccatalyst wasm-tools wasm-tools-net8
     - name: Install Uno Check
       run: dotnet tool install -g Uno.Check
     - name: Uno Check
@@ -199,15 +209,15 @@ jobs:
         path: |
            ~/.nuget/packages/*
            !/.nuget/packages/Mapsui*
-        key: ${{ runner.os }}-nuget19-${{ hashFiles('Directory.Packages.props') }}
+        key: ${{ runner.os }}-nuget20-${{ hashFiles('Directory.Packages.props') }}
         restore-keys: |
-            ${{ runner.os }}-nuget19-
+            ${{ runner.os }}-nuget20-
     # .Net 8 update     
-    - name: Setup .NET 8 SDK
+    - name: Setup .NET 9 SDK
       uses: actions/setup-dotnet@v4
       with:
          dotnet-version: |
-           8.0.x         
+           9.0.x         
     # Java Sdk install 11
     - name: Install Open JDK 11
       uses: actions/setup-java@v4
@@ -218,8 +228,8 @@ jobs:
       uses: NuGet/setup-nuget@v2
       with:
         nuget-version: latest
-    - name: install maui macos android ios maccatalyst wasm-tools
-      run: dotnet workload install maui macos android ios maccatalyst wasm-tools
+    - name: install maui macos android ios maccatalyst wasm-tools wasm-tools-net8
+      run: dotnet workload install maui macos android ios maccatalyst wasm-tools wasm-tools-net8
     - name: Install Uno Check
       run: dotnet tool install -g Uno.Check
     - name: Uno Check
